@@ -50,11 +50,12 @@ object LocalTestServer {
     fun start(preferredPort: Int = 8080): Int {
         if (isRunning) return actualPort
 
-        val portsToTry = listOf(preferredPort, 8081, 8888, 9090)
+        val portsToTry = if (preferredPort > 0) listOf(preferredPort, 8081, 8888, 9090) else listOf(0)
         for (p in portsToTry) {
             try {
-                serverSocket = ServerSocket(p)
-                actualPort = p
+                val socket = ServerSocket(p)
+                serverSocket = socket
+                actualPort = socket.localPort
                 break
             } catch (e: Exception) {
                 // Try next port
@@ -145,7 +146,13 @@ object LocalTestServer {
                         signalVal = json.getInt("signal")
                     }
                 } catch (e: Exception) {
-                    // Parse fallback
+                    // Fallback using regex
+                }
+                if (signalVal == -1) {
+                    val match = Regex("\"signal\"\\s*:\\s*(\\d+)").find(rawBody)
+                    if (match != null) {
+                        signalVal = match.groupValues[1].toIntOrNull() ?: -1
+                    }
                 }
 
                 if (signalVal != -1) {

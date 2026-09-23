@@ -24,7 +24,9 @@ class LocalTestServerTest {
 
     @Before
     fun setup() {
+        LocalTestServer.stop()
         port = LocalTestServer.start(preferredPort = 0) // dynamic port
+        assertTrue("Port must be positive and valid", port > 0)
         LocalTestServer.clearHistory()
     }
 
