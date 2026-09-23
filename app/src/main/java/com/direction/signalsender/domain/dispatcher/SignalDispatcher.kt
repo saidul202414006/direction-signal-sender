@@ -11,13 +11,46 @@ class SignalDispatcher(
     var lastSentSignal: Int? = null
         private set
 
+    var isSignalZeroMode: Boolean = false
+        private set
+
     /**
-     * Dispatches signal if and only if the confirmed stable direction is different
-     * from the last confirmed direction.
-     * Returns true if signal was dispatched, false if duplicate was suppressed.
+     * Toggles Signal-0 mode.
+     * When ON, all normal direction signals (1, 2, 3, 4) are suppressed.
+     * When OFF, normal direction signals resume.
+     */
+    @Synchronized
+    fun toggleSignalZeroMode(): Boolean {
+        isSignalZeroMode = !isSignalZeroMode
+        if (!isSignalZeroMode) {
+            // When exiting Signal-0 mode, reset lastConfirmedDirection so that
+            // direction-based signals resume cleanly for the current stable direction.
+            lastConfirmedDirection = null
+        }
+        return isSignalZeroMode
+    }
+
+    @Synchronized
+    fun setSignalZeroMode(enabled: Boolean) {
+        isSignalZeroMode = enabled
+        if (!enabled) {
+            lastConfirmedDirection = null
+        }
+    }
+
+    /**
+     * Dispatches signal if and only if:
+     * 1. Signal-0 mode is NOT active.
+     * 2. The confirmed stable direction is different from the last confirmed direction.
+     * Returns true if signal was dispatched, false if suppressed.
      */
     @Synchronized
     fun onDirectionStabilized(direction: CardinalDirection): Boolean {
+        if (isSignalZeroMode) {
+            // In Signal-0 mode, normal direction-based signals are completely stopped
+            return false
+        }
+
         if (direction == lastConfirmedDirection) {
             // Suppress duplicate transmission while phone remains in same direction
             return false
@@ -34,6 +67,7 @@ class SignalDispatcher(
     fun reset() {
         lastConfirmedDirection = null
         lastSentSignal = null
+        isSignalZeroMode = false
     }
 
     @Synchronized

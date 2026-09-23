@@ -44,6 +44,10 @@ class PreferenceManager(context: Context) {
         get() = prefs.getString(KEY_LAST_TRANSMISSION, null)
         set(value) = prefs.edit().putString(KEY_LAST_TRANSMISSION, value).apply()
 
+    var isSignalZeroMode: Boolean
+        get() = prefs.getBoolean(KEY_SIGNAL_ZERO_MODE, false)
+        set(value) = prefs.edit().putBoolean(KEY_SIGNAL_ZERO_MODE, value).apply()
+
     companion object {
         private const val PREFS_NAME = "direction_signal_sender_prefs"
         private const val KEY_ENDPOINT_URL = "key_endpoint_url"
@@ -51,6 +55,7 @@ class PreferenceManager(context: Context) {
         private const val KEY_LAST_DIRECTION = "key_last_direction"
         private const val KEY_LAST_SIGNAL = "key_last_signal"
         private const val KEY_LAST_TRANSMISSION = "key_last_transmission"
+        private const val KEY_SIGNAL_ZERO_MODE = "key_signal_zero_mode"
 
         const val DEFAULT_URL = "https://example.com/api/direction"
     }

@@ -43,5 +43,6 @@ data class DirectionState(
     val lastSignalSent: Int? = null,
     val lastTransmission: TransmissionResult? = null,
     val isServiceRunning: Boolean = false,
+    val isSignalZeroMode: Boolean = false,
     val configuredUrl: String = ""
 )

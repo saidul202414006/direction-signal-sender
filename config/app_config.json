@@ -3,11 +3,17 @@
   "project": {
     "name": "DirectionSignalSender",
     "package_name": "com.direction.signalsender",
-    "version_name": "1.0.0",
-    "version_code": 1,
+    "version_name": "1.1.0",
+    "version_code": 2,
     "min_sdk": 24,
     "target_sdk": 34,
     "compile_sdk": 34
+  },
+  "signal_zero": {
+    "signal": 0,
+    "repeat_interval_ms": 1000,
+    "trigger_hardware_key": "KEYCODE_VOLUME_DOWN",
+    "behavior": "Continuous transmission of signal 0 while active; direction signals paused until toggled off"
   },
   "sectors": {
     "north": {

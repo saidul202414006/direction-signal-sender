@@ -16,4 +16,9 @@
     <string name="permissions_title">System Permissions</string>
     <string name="fix_battery_optimization">Disable Battery Restriction</string>
     <string name="grant_notification">Grant Notification Permission</string>
+    <string name="accessibility_service_description">Enables hardware Volume Down button interception to toggle Signal-0 mode globally even when the screen is locked.</string>
+    <string name="signal_zero_title">Signal 0 Mode (Volume Down)</string>
+    <string name="signal_zero_desc">Press Volume Down button to toggle. 1st click = Signal 0 ON (pauses direction signals). 2nd click = Signal 0 OFF (resumes normal direction signals).</string>
+    <string name="signal_zero_active">SIGNAL 0 ACTIVE (CONTINUOUS)</string>
+    <string name="signal_zero_inactive">SIGNAL 0 OFF (NORMAL DIRECTION)</string>
 </resources>

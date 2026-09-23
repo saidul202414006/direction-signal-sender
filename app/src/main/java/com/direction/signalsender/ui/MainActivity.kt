@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
+import android.view.KeyEvent
 import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -50,6 +51,7 @@ class MainActivity : AppCompatActivity() {
 
         setupEndpointConfig()
         setupServiceToggle()
+        setupSignalZeroToggle()
         setupPermissionActions()
         observeServiceState()
     }
@@ -57,6 +59,22 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         checkAndDisplayPermissionStatus()
+    }
+
+    /**
+     * Intercepts hardware Volume Down button to toggle Signal-0 mode.
+     * 1st click: Signal 0 ON (pauses direction signals, sends 0 continuously)
+     * 2nd click: Signal 0 OFF (resumes normal direction-based signals)
+     */
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                DirectionMonitorService.toggleSignalZeroMode(this)
+                return true // Consume key event so system volume does not change
+            }
+            return true
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     private fun setupEndpointConfig() {
@@ -86,6 +104,22 @@ class MainActivity : AppCompatActivity() {
                 }
             } else {
                 DirectionMonitorService.stop(this)
+            }
+        }
+    }
+
+    private fun setupSignalZeroToggle() {
+        binding.btnToggleSignalZero.setOnClickListener {
+            DirectionMonitorService.toggleSignalZeroMode(this)
+        }
+
+        binding.btnAccessibilitySettings.setOnClickListener {
+            try {
+                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                startActivity(intent)
+                Toast.makeText(this, "Enable 'Direction Sender Volume Key Controller' for screen-off key capture", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                openAppDetailsSettings()
             }
         }
     }
@@ -148,30 +182,55 @@ class MainActivity : AppCompatActivity() {
                         getString(R.string.service_stopped)
                     }
 
-                    // Direction & Heading
-                    binding.tvCurrentDirection.text = state.direction.displayName
-                    binding.tvCurrentHeading.text = "Heading: ${state.azimuthDeg.toInt()}°"
+                    // Signal-0 Mode UI state
+                    if (state.isSignalZeroMode) {
+                        binding.tvSignalZeroBadge.text = "ACTIVE (0)"
+                        binding.tvSignalZeroBadge.setTextColor(Color.WHITE)
+                        binding.tvSignalZeroBadge.setBackgroundColor(Color.parseColor("#DC2626"))
+                        binding.btnToggleSignalZero.text = "Disable Signal 0 (Vol-)"
 
-                    // Motion Badge
-                    when (state.motionStatus) {
-                        MotionStatus.STABLE -> {
-                            binding.tvMotionStatus.text = "STATUS: STABLE"
-                            binding.tvMotionStatus.setBackgroundColor(Color.parseColor("#10B981"))
+                        binding.tvMotionStatus.text = "STATUS: SIGNAL-0 ACTIVE"
+                        binding.tvMotionStatus.setBackgroundColor(Color.parseColor("#DC2626"))
+                    } else {
+                        binding.tvSignalZeroBadge.text = "OFF"
+                        binding.tvSignalZeroBadge.setTextColor(Color.parseColor("#94A3B8"))
+                        binding.tvSignalZeroBadge.setBackgroundColor(Color.parseColor("#334155"))
+                        binding.btnToggleSignalZero.text = "Enable Signal 0 (Vol-)"
+
+                        // Normal Motion Badge
+                        when (state.motionStatus) {
+                            MotionStatus.STABLE -> {
+                                binding.tvMotionStatus.text = "STATUS: STABLE"
+                                binding.tvMotionStatus.setBackgroundColor(Color.parseColor("#10B981"))
+                            }
+                            MotionStatus.MOVING -> {
+                                binding.tvMotionStatus.text = "STATUS: MOVING"
+                                binding.tvMotionStatus.setBackgroundColor(Color.parseColor("#F59E0B"))
+                            }
+                            MotionStatus.UNKNOWN -> {
+                                binding.tvMotionStatus.text = "STATUS: CALIBRATING"
+                                binding.tvMotionStatus.setBackgroundColor(Color.parseColor("#475569"))
+                            }
                         }
-                        MotionStatus.MOVING -> {
-                            binding.tvMotionStatus.text = "STATUS: MOVING"
-                            binding.tvMotionStatus.setBackgroundColor(Color.parseColor("#F59E0B"))
-                        }
-                        MotionStatus.UNKNOWN -> {
-                            binding.tvMotionStatus.text = "STATUS: CALIBRATING"
-                            binding.tvMotionStatus.setBackgroundColor(Color.parseColor("#475569"))
-                        }
+                    }
+
+                    // Direction & Heading
+                    if (state.isSignalZeroMode) {
+                        binding.tvCurrentDirection.text = "SIGNAL 0"
+                        binding.tvCurrentHeading.text = "Heading: ${state.azimuthDeg.toInt()}° (Paused)"
+                    } else {
+                        binding.tvCurrentDirection.text = state.direction.displayName
+                        binding.tvCurrentHeading.text = "Heading: ${state.azimuthDeg.toInt()}°"
                     }
 
                     // Last Signal Sent
                     val lastSignalText = if (state.lastSignalSent != null) {
-                        val dir = CardinalDirection.fromSignal(state.lastSignalSent)
-                        "Last Signal Sent: ${state.lastSignalSent} (${dir?.displayName ?: ""})"
+                        if (state.lastSignalSent == 0) {
+                            "Last Signal Sent: 0 (SIGNAL-0 MODE)"
+                        } else {
+                            val dir = CardinalDirection.fromSignal(state.lastSignalSent)
+                            "Last Signal Sent: ${state.lastSignalSent} (${dir?.displayName ?: ""})"
+                        }
                     } else {
                         "Last Signal Sent: None"
                     }

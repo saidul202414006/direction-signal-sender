@@ -55,3 +55,19 @@ All test runs, benchmarks, algorithmic adjustments, and bug fixes must be record
 - **Direct Download URL**: `https://github.com/saidul202414006/direction-signal-sender/releases/download/v1.0.0/DirectionSignalSender-v1.0.0.apk`
 - **CI/CD Workflow Update**: Configured automated asset deployment to GitHub Releases for all future tag pushes via `softprops/action-gh-release@v2`.
 - **Result**: PASSED. GitHub Release published with live APK download link.
+
+---
+
+### [2026-09-23] EXP-006: Signal-0 Volume Down Toggle Mode Implementation & v1.1.0 Release
+- **Objective**: Implement hardware Volume Down button toggle for Signal-0 mode without changing existing direction-based signal logic.
+- **Specification Implementation**:
+  - **1st Volume Down Click**: Enables Signal-0 mode; direction-based signals (1, 2, 3, 4) are completely paused; sends `{"signal": 0}` continuously at a 1000ms interval.
+  - **2nd Volume Down Click**: Disables Signal-0 mode; stops continuous Signal-0 loop; normal direction detection resumes immediately.
+  - **Hardware Key Interception**:
+    - Foreground: `MainActivity.dispatchKeyEvent` intercepts `KEYCODE_VOLUME_DOWN` synchronously.
+    - Background / Screen-off: `VolumeKeyAccessibilityService` intercepts global key events without waking the display.
+    - Fallback: `VOLUME_CHANGED_ACTION` BroadcastReceiver monitors volume steps.
+    - UI: Dedicated MaterialCardView with status badge and manual toggle button.
+  - **Zero Regression**: Direction-based logic (`StabilityDetector`, `SectorClassifier`, `AzimuthCalculator`) remains 100% unchanged.
+  - **Unit Testing**: Added `SignalZeroModeTest` verifying toggling, suppression, and resumption.
+  - **Version Bump**: `v1.1.0` (versionCode: 2).
