@@ -77,4 +77,29 @@ class StabilityDetectorTest {
         val latencyMs = confirmationTimeMs - stopMovingTime
         org.junit.Assert.assertTrue("Latency should be <= 2000ms, actual: $latencyMs ms", latencyMs <= 2000L)
     }
+
+    @Test
+    fun `test resetStableReported immediately re-confirms direction when phone is already stable`() {
+        var time = 20000L
+        // Feed stable North samples
+        for (i in 0 until 20) {
+            detector.addSample(0.5f, time)
+            time += 50L
+        }
+
+        // Initially confirmed North
+        val res1 = detector.addSample(0.4f, time)
+        time += 50L
+        // Subsequent sample in same direction yields null (duplicate suppression in detector)
+        val res2 = detector.addSample(0.6f, time)
+        time += 50L
+        assertNull("Subsequent stable samples in same direction do not re-emit", res2.stableDirectionConfirmed)
+
+        // Now call resetStableReported (as done when exiting Signal-0 mode)
+        detector.resetStableReported()
+
+        // The very next sample MUST re-emit North immediately without requiring movement!
+        val res3 = detector.addSample(0.5f, time)
+        assertEquals(CardinalDirection.NORTH, res3.stableDirectionConfirmed)
+    }
 }

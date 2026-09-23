@@ -75,4 +75,25 @@ class SignalZeroModeTest {
         // Click 4: OFF
         assertFalse(dispatcher.toggleSignalZeroMode())
     }
+
+    @Test
+    fun `test resuming normal direction sends signal for same direction without requiring movement`() {
+        // Initially at North -> Signal 1 sent
+        dispatcher.onDirectionStabilized(CardinalDirection.NORTH)
+        assertEquals(listOf(1), sentSignals)
+
+        // 1st click: Signal 0 ON
+        dispatcher.toggleSignalZeroMode()
+        assertTrue(dispatcher.isSignalZeroMode)
+
+        // 2nd click: Signal 0 OFF
+        dispatcher.toggleSignalZeroMode()
+        assertFalse(dispatcher.isSignalZeroMode)
+
+        // While phone stayed facing North the whole time:
+        // Exiting Signal 0 mode allows North to be dispatched again immediately!
+        val dispatchedNorth = dispatcher.onDirectionStabilized(CardinalDirection.NORTH)
+        assertTrue("Direction signal North should be sent immediately upon resuming", dispatchedNorth)
+        assertEquals(listOf(1, 1), sentSignals)
+    }
 }

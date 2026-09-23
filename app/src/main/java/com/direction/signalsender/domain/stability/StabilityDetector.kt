@@ -94,4 +94,9 @@ class StabilityDetector(
         currentMotionStatus = MotionStatus.UNKNOWN
         lastStableDirectionReported = null
     }
+
+    @Synchronized
+    fun resetStableReported() {
+        lastStableDirectionReported = null
+    }
 }

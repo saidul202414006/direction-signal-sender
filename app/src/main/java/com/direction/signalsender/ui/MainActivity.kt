@@ -107,11 +107,27 @@ class MainActivity : AppCompatActivity() {
         if (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                 DirectionMonitorService.toggleSignalZeroMode(this)
-                return true // Consume key event so system volume does not change
+            }
+            return true // Consume key event so system volume does not change
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+            if (event?.repeatCount == 0) {
+                DirectionMonitorService.toggleSignalZeroMode(this)
             }
             return true
         }
-        return super.dispatchKeyEvent(event)
+        return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+            return true
+        }
+        return super.onKeyUp(keyCode, event)
     }
 
     private fun setupEndpointConfig() {

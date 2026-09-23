@@ -11,9 +11,13 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.media.AudioManager
+import android.media.VolumeProvider
+import android.media.session.MediaSession
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.SystemClock
+import android.view.KeyEvent
 import androidx.core.app.NotificationCompat
 import com.direction.signalsender.R
 import com.direction.signalsender.data.network.SignalApiClient
@@ -54,25 +58,35 @@ class DirectionMonitorService : Service() {
     // Volume Down hardware detector for background
     private lateinit var audioManager: AudioManager
     private var lastMediaVolume: Int = -1
-    private var lastVolumeChangeTimestampMs: Long = 0L
+    private var lastToggleTimestampMs: Long = 0L
+    private var mediaSession: MediaSession? = null
 
     private val volumeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == "android.media.VOLUME_CHANGED_ACTION") {
                 val currentVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-                val now = System.currentTimeMillis()
-                // Check if volume decreased and debounce within 350ms
-                if (lastMediaVolume != -1 && currentVol < lastMediaVolume && (now - lastVolumeChangeTimestampMs) > 350) {
-                    lastVolumeChangeTimestampMs = now
+                if (lastMediaVolume != -1 && currentVol < lastMediaVolume) {
+                    // Instantly restore previous volume so media volume does NOT decrease!
+                    try {
+                        audioManager.setStreamVolume(
+                            AudioManager.STREAM_MUSIC,
+                            lastMediaVolume,
+                            AudioManager.FLAG_REMOVE_SOUND_AND_VIBRATE
+                        )
+                    } catch (e: Exception) {
+                        // Ignore volume setting exceptions
+                    }
                     toggleSignalZeroModeInternal()
+                } else {
+                    lastMediaVolume = currentVol
                 }
-                lastMediaVolume = currentVol
             }
         }
     }
 
     override fun onCreate() {
         super.onCreate()
+        runningInstance = this
         preferenceManager = PreferenceManager(applicationContext)
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         createNotificationChannel()
@@ -81,9 +95,17 @@ class DirectionMonitorService : Service() {
 
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         lastMediaVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+
+        // Setup MediaSession with Remote VolumeProvider to intercept Volume Down in background & screen-off
+        setupMediaSession()
+
         try {
             val filter = IntentFilter("android.media.VOLUME_CHANGED_ACTION")
-            registerReceiver(volumeReceiver, filter)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(volumeReceiver, filter, Context.RECEIVER_EXPORTED)
+            } else {
+                registerReceiver(volumeReceiver, filter)
+            }
         } catch (e: Exception) {
             // Ignore receiver registration failures on restricted vendor ROMs
         }
@@ -137,7 +159,49 @@ class DirectionMonitorService : Service() {
         )
     }
 
+    private fun setupMediaSession() {
+        try {
+            mediaSession = MediaSession(this, "DirectionSignalSenderSession").apply {
+                setFlags(MediaSession.FLAG_HANDLES_MEDIA_BUTTONS or MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS)
+
+                val volumeProvider = object : VolumeProvider(VOLUME_CONTROL_RELATIVE, 100, 50) {
+                    override fun onAdjustVolume(direction: Int) {
+                        // direction < 0 or AudioManager.ADJUST_LOWER indicates Volume Down
+                        if (direction < 0 || direction == AudioManager.ADJUST_LOWER) {
+                            toggleSignalZeroModeInternal()
+                        }
+                    }
+                }
+                setPlaybackToRemote(volumeProvider)
+
+                setCallback(object : MediaSession.Callback() {
+                    override fun onMediaButtonEvent(mediaButtonIntent: Intent): Boolean {
+                        val keyEvent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT, KeyEvent::class.java)
+                        } else {
+                            @Suppress("DEPRECATION")
+                            mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT)
+                        }
+                        if (keyEvent?.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+                            if (keyEvent.action == KeyEvent.ACTION_DOWN && keyEvent.repeatCount == 0) {
+                                toggleSignalZeroModeInternal()
+                            }
+                            return true
+                        }
+                        return super.onMediaButtonEvent(mediaButtonIntent)
+                    }
+                })
+
+                isActive = true
+            }
+        } catch (e: Exception) {
+            // MediaSession creation fallback
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        startAsForeground()
+
         when (intent?.action) {
             ACTION_STOP -> {
                 stopSelf()
@@ -149,11 +213,18 @@ class DirectionMonitorService : Service() {
             }
         }
 
-        startAsForeground()
         return START_STICKY
     }
 
+    @Synchronized
     fun toggleSignalZeroModeInternal(): Boolean {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastToggleTimestampMs < 600L) {
+            // Debounce: prevent multiple triggers from different listeners for the same click
+            return signalDispatcher.isSignalZeroMode
+        }
+        lastToggleTimestampMs = now
+
         val isNowZeroMode = signalDispatcher.toggleSignalZeroMode()
         preferenceManager.isSignalZeroMode = isNowZeroMode
 
@@ -220,9 +291,10 @@ class DirectionMonitorService : Service() {
             isSignalZeroMode = false
         )
 
-        // Clear last confirmed direction in dispatcher so the current direction
-        // will be transmitted immediately when confirmed stable
+        // Clear last confirmed direction in dispatcher and reset stability detector
+        // so the current stable direction will be transmitted immediately
         signalDispatcher.restoreState(null, null)
+        stabilityDetector.resetStableReported()
     }
 
     private fun startAsForeground() {
@@ -369,6 +441,11 @@ class DirectionMonitorService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        mediaSession?.isActive = false
+        mediaSession?.release()
+        mediaSession = null
+        runningInstance = null
+
         try {
             unregisterReceiver(volumeReceiver)
         } catch (e: Exception) {
@@ -395,6 +472,10 @@ class DirectionMonitorService : Service() {
         const val ACTION_STOP = "com.direction.signalsender.action.STOP"
         const val ACTION_TOGGLE_SIGNAL_ZERO = "com.direction.signalsender.action.TOGGLE_SIGNAL_ZERO"
 
+        @Volatile
+        var runningInstance: DirectionMonitorService? = null
+            private set
+
         private val _serviceState = MutableStateFlow(DirectionState())
         val serviceState: StateFlow<DirectionState> = _serviceState.asStateFlow()
 
@@ -417,13 +498,18 @@ class DirectionMonitorService : Service() {
         }
 
         fun toggleSignalZeroMode(context: Context) {
-            val intent = Intent(context, DirectionMonitorService::class.java).apply {
-                action = ACTION_TOGGLE_SIGNAL_ZERO
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
+            val instance = runningInstance
+            if (instance != null) {
+                instance.toggleSignalZeroModeInternal()
             } else {
-                context.startService(intent)
+                val intent = Intent(context, DirectionMonitorService::class.java).apply {
+                    action = ACTION_TOGGLE_SIGNAL_ZERO
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
             }
         }
     }

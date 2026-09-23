@@ -84,3 +84,18 @@ All test runs, benchmarks, algorithmic adjustments, and bug fixes must be record
   - **Real-Time Polling**: Dashboard auto-updates every 350ms for instant feedback.
   - **Unit Testing**: Added `LocalTestServerTest` verifying POST handling, JSON parsing, 200 OK responses, and `/api/latest` queries.
   - **Version Bump**: `v1.2.0` (versionCode: 3).
+
+---
+
+### [2026-09-23] EXP-008: Robust Volume Down Hardware Interception, Background/Screen-Off Isolation, and Direction Resumption (v1.3.0 Release)
+- **Objective**: Ensure Volume Down strictly toggles Signal 0 without changing media volume, operates seamlessly in background and screen-off/locked states, eliminates double-toggling, and resumes normal direction detection cleanly upon toggle exit.
+- **Architectural Enhancements**:
+  1. **MediaSession + Remote VolumeProvider**: Configured `android.media.session.MediaSession` with remote `VolumeProvider` in `DirectionMonitorService`. Android audio policy routes volume adjustment to `onAdjustVolume` without modifying local stream volume, enabling hardware button capture even when phone screen is locked/off.
+  2. **AccessibilityService Key Filter Flag**: Added missing `android:accessibilityFlags="flagRequestFilterKeyEvents"` in `volume_accessibility_service_config.xml` and configured `onServiceConnected()` in `VolumeKeyAccessibilityService` to properly intercept hardware keys across the system.
+  3. **Strict 600ms Debounce**: Unified toggle entry point in `DirectionMonitorService.toggleSignalZeroModeInternal()` with monotonic `SystemClock.elapsedRealtime()` check, preventing race conditions or double-toggles when multiple listeners receive the same key press.
+  4. **Active Volume Guard & Instant Restoration**: In `volumeReceiver`, any decrease in music stream volume is immediately restored via `audioManager.setStreamVolume` with `FLAG_REMOVE_SOUND_AND_VIBRATE`, preventing unwanted media volume changes.
+  5. **Immediate Direction Resumption**: Added `resetStableReported()` in `StabilityDetector` and wired into `stopContinuousSignalZeroLoop()`. When exiting Signal-0 mode, the current stable direction is re-confirmed and dispatched on the very next sensor frame (~50ms) without requiring the user to physically rotate the phone.
+  6. **Foreground Service Crash Prevention**: Moved `startAsForeground()` to the unconditional top of `onStartCommand` to prevent `ForegroundServiceDidNotStartInTimeException` on Android 8+.
+- **Verification**: Added unit tests in `SignalZeroModeTest` (same-direction immediate resumption) and `StabilityDetectorTest` (`resetStableReported`).
+- **Version Bump**: `v1.3.0` (versionCode: 4).
+
