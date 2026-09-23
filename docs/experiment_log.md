@@ -29,4 +29,17 @@ All test runs, benchmarks, algorithmic adjustments, and bug fixes must be record
 - **Objective**: Optimize `StabilityDetector` to eliminate double-latency penalty and pass all unit tests.
 - **Root Cause**: `StabilityDetector` previously enforced an additional `minStableDurationMs` timer *after* the sliding window cleared, doubling the total wait time to ~1.75s.
 - **Fix**: Streamlined stability confirmation so that when samples spanning $\ge 750\text{ ms}$ within the window maintain low excursion ($\le 7.0^\circ$) in the same sector, stability is confirmed immediately (~750–900 ms latency).
-- **Next Step**: Commit, push to `main`, and re-trigger GitHub Actions CI run.
+- **Result**: PASSED. All unit tests passed and APK built successfully.
+
+---
+
+### [2026-09-23] EXP-004: GitHub Actions CI Build Run 3 (Success & Artifact Export)
+- **Objective**: Full automated build, test, and release APK packaging in GitHub Actions.
+- **Run ID**: `35838169851`
+- **Actions Run URL**: `https://github.com/saidul202414006/direction-signal-sender/actions/runs/35838169851`
+- **Result**: **SUCCESS**.
+  - All 13 JVM Unit Tests passed across DSP sectoring, circular distance math, sliding-window stability state machine, and duplicate signal suppression.
+  - Task `:app:assembleDebug` assembled `app-debug.apk` (6.4 MB).
+  - Uploaded artifact `direction-signal-sender-apk` (5.4 MB compressed).
+  - Artifact downloaded and verified at [`build-output/app-debug.apk`](file:///d:/bin/projects/MMA%205%20m/build-output/app-debug.apk).
+- **Physical Verification**: Ready for physical phone validation per the step-by-step Bangla testing runbook.
