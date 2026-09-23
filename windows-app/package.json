@@ -1,6 +1,6 @@
 {
   "name": "zone-detection-app",
-  "version": "1.0.0",
+  "version": "1.4.1",
   "description": "Windows Zone Detection Application with Embedded Signal Receiver and Real-time CSI Visualization",
   "main": "src/main.js",
   "author": "Antigravity",

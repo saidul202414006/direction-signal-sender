@@ -1,4 +1,4 @@
-// Zone Detection Application Renderer Logic
+// Zone Detection Application Renderer Logic (v1.4.1)
 
 class WaveformChannel {
   constructor(canvasId, cardId, indicatorId, isInitiallyActive = false) {
@@ -9,14 +9,16 @@ class WaveformChannel {
     this.isActive = isInitiallyActive;
 
     this.pointsCount = 140;
-    this.data = new Array(this.pointsCount).fill(0.2);
+    // Inactive baseline is ~0.24 (strictly < 0.72 threshold)
+    this.data = new Array(this.pointsCount).fill(0).map(() => 0.22 + (Math.random() - 0.5) * 0.08);
 
-    // Natural multi-octave noise state variables
-    this.time = Math.random() * 1000;
-    this.speed = 0.045;
-    this.quietPhase = Math.random() * 10;
-    this.burstPhase = Math.random() * 10;
-    this.drift = 0.2;
+    // Multi-harmonic non-repeating noise seeds (irrational frequencies)
+    this.t = Math.random() * 500;
+    this.speed = 0.05;
+    this.seed1 = 0.71828 + Math.random() * 0.4;
+    this.seed2 = 1.41421 + Math.random() * 0.5;
+    this.seed3 = 3.14159 + Math.random() * 0.8;
+    this.seed4 = 5.67128 + Math.random() * 1.5;
 
     this.resizeCanvas();
     window.addEventListener('resize', () => this.resizeCanvas());
@@ -33,50 +35,71 @@ class WaveformChannel {
   }
 
   setActive(active) {
+    const wasActive = this.isActive;
     this.isActive = active;
+
     if (active) {
       this.card.classList.add('active');
       this.indicator.textContent = 'ABOVE THRESHOLD';
+
+      // Instant excitation: Elevate existing buffer points immediately above threshold (0.72)
+      // Eliminates the 2.3-second buffer crawl delay!
+      if (!wasActive) {
+        for (let i = 0; i < this.pointsCount; i++) {
+          const jitter = (Math.random() - 0.5) * 0.12;
+          const ripple = Math.sin(i * 0.28) * 0.05;
+          let val = 0.81 + jitter + ripple;
+          if (val < 0.74) val = 0.74 + Math.random() * 0.06;
+          if (val > 0.96) val = 0.96;
+          this.data[i] = val;
+        }
+      }
     } else {
       this.card.classList.remove('active');
       this.indicator.textContent = 'Below Threshold';
+
+      // Instant relaxation: Drop existing buffer points immediately to baseline noise (< 0.72)
+      if (wasActive) {
+        for (let i = 0; i < this.pointsCount; i++) {
+          const jitter = (Math.random() - 0.5) * 0.08;
+          let val = 0.24 + jitter;
+          if (val > 0.45) val = 0.42;
+          this.data[i] = val;
+        }
+      }
     }
   }
 
-  // Generates natural non-repeating procedural fluctuations
+  // Generates authentic, non-repeating RF / CSI subcarrier fluctuations
   nextSample() {
-    this.time += this.speed;
-    this.quietPhase += 0.008;
-    this.burstPhase += 0.015;
+    this.t += this.speed;
 
-    // Layer 1: Slow organic baseline wandering
-    const slowWander = Math.sin(this.time * 0.35) * 0.06 + Math.cos(this.time * 0.17) * 0.05;
+    // Multi-frequency inharmonic synthesis prevents visible repetition
+    const w1 = Math.sin(this.t * this.seed1 * 0.38);
+    const w2 = Math.cos(this.t * this.seed2 * 0.89);
+    const w3 = Math.sin(this.t * this.seed3 * 1.94);
+    const w4 = Math.sin(this.t * this.seed4 * 4.12);
 
-    // Layer 2: Medium frequency ripples
-    const midRipple = Math.sin(this.time * 1.8) * 0.04 + Math.sin(this.time * 3.7) * 0.025;
+    // High-frequency Gaussian-distributed RF micro-jitter
+    const rfJitter = ((Math.random() + Math.random() + Math.random()) - 1.5) * 0.045;
 
-    // Layer 3: Organic high frequency jitter
-    const jitter = (Math.random() - 0.5) * 0.045;
-
-    // Layer 4: Occasional natural spikes / burst periods
-    const burstEnvelope = Math.max(0, Math.sin(this.burstPhase) * 1.5 - 0.5);
-    const spike = (Math.random() > 0.88 ? Math.random() * 0.12 : 0) * burstEnvelope;
-
-    // Layer 5: Quiet periods modulation (sometimes calm, sometimes restless)
-    const quietMod = 0.55 + 0.45 * Math.sin(this.quietPhase);
+    // Occasional subcarrier multipath spike
+    const multipathSpike = Math.random() > 0.94 ? (Math.random() - 0.5) * 0.07 : 0;
 
     if (this.isActive) {
-      // ACTIVE ZONE: Fluctuate around and ABOVE the Presence Level (~0.64)
-      const baseActiveLevel = 0.62;
-      const activeFluctuation = (slowWander * 1.8 + midRipple * 2.2 + jitter * 2.0 + spike * 1.6) * quietMod;
-      const rawVal = baseActiveLevel + activeFluctuation;
-      return Math.min(0.96, Math.max(0.42, rawVal));
+      // ACTIVE ZONE: Fluctuates vigorously strictly ABOVE the 0.72 Threshold
+      const baseLevel = 0.82;
+      const variation = (w1 * 0.035 + w2 * 0.04 + w3 * 0.03 + w4 * 0.02 + rfJitter * 1.4 + multipathSpike);
+      let val = baseLevel + variation;
+      // Guarantee it stays strictly above the 0.72 threshold line
+      return Math.min(0.97, Math.max(0.74, val));
     } else {
-      // INACTIVE ZONE: Stay strictly BELOW the Presence Level (< 0.55)
-      const baseInactiveLevel = 0.22;
-      const inactiveFluctuation = (slowWander * 0.8 + midRipple * 0.9 + jitter + spike * 0.5) * quietMod;
-      const rawVal = baseInactiveLevel + inactiveFluctuation;
-      return Math.min(0.50, Math.max(0.08, rawVal));
+      // INACTIVE ZONE: Fluctuates with natural background noise strictly BELOW the 0.72 Threshold
+      const baseLevel = 0.25;
+      const variation = (w1 * 0.03 + w2 * 0.035 + w3 * 0.02 + rfJitter + multipathSpike * 0.4);
+      let val = baseLevel + variation;
+      // Guarantee it stays comfortably below the 0.72 threshold line
+      return Math.min(0.48, Math.max(0.12, val));
     }
   }
 
@@ -92,57 +115,53 @@ class WaveformChannel {
     const h = this.height;
 
     ctx.clearRect(0, 0, w, h);
-
     if (w <= 0 || h <= 0) return;
 
-    // Draw subtle grid lines
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+    // Draw subtle oscilloscope-style background grid
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.035)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, h * 0.33); ctx.lineTo(w, h * 0.33);
     ctx.moveTo(0, h * 0.66); ctx.lineTo(w, h * 0.66);
     ctx.stroke();
 
-    // Waveform path
+    // Waveform line path
     ctx.beginPath();
     const step = w / (this.pointsCount - 1);
 
     for (let i = 0; i < this.pointsCount; i++) {
       const x = i * step;
-      // Invert Y coordinate so 0 = bottom, 1 = top
+      // 0.0 at bottom, 1.0 at top
       const y = h - this.data[i] * h;
       if (i === 0) {
         ctx.moveTo(x, y);
       } else {
-        // Smooth bezier curve between points
-        const prevX = (i - 1) * step;
-        const prevY = h - this.data[i - 1] * h;
-        const midX = (prevX + x) / 2;
-        ctx.quadraticCurveTo(prevX, prevY, midX, (prevY + y) / 2);
+        // Direct segment lines represent realistic digital signal oscilloscope traces
+        ctx.lineTo(x, y);
       }
     }
 
     if (this.isActive) {
-      // Active Waveform Glow
+      // Active Waveform Trace: Emerald Glow
       ctx.strokeStyle = '#00e5a3';
-      ctx.lineWidth = 2.2;
-      ctx.shadowColor = 'rgba(0, 229, 163, 0.6)';
-      ctx.shadowBlur = 8;
+      ctx.lineWidth = 2.0;
+      ctx.shadowColor = 'rgba(0, 229, 163, 0.55)';
+      ctx.shadowBlur = 7;
       ctx.stroke();
 
-      // Subtle filled area under active curve
+      // Translucent energy fill under active curve
       ctx.lineTo(w, h);
       ctx.lineTo(0, h);
       ctx.closePath();
-      const grad = ctx.createLinearGradient(0, 0, 0, h);
-      grad.addColorStop(0, 'rgba(0, 229, 163, 0.18)');
+      const grad = ctx.createLinearGradient(0, h * 0.2, 0, h);
+      grad.addColorStop(0, 'rgba(0, 229, 163, 0.16)');
       grad.addColorStop(1, 'rgba(0, 229, 163, 0.00)');
       ctx.fillStyle = grad;
       ctx.shadowBlur = 0;
       ctx.fill();
     } else {
-      // Inactive Waveform
-      ctx.strokeStyle = '#5a6982';
+      // Inactive Waveform Trace: Muted RF Baseline
+      ctx.strokeStyle = '#475569';
       ctx.lineWidth = 1.4;
       ctx.shadowBlur = 0;
       ctx.stroke();
@@ -175,11 +194,7 @@ class ZoneDetectionApp {
   }
 
   initElements() {
-    this.headerModeBadge = document.getElementById('headerModeBadge');
-    this.headerSignalBadge = document.getElementById('headerSignalBadge');
-    this.headerEndpointStatus = document.getElementById('headerEndpointStatus');
-    this.quickEndpointText = document.getElementById('quickEndpointText');
-    this.lastPingText = document.getElementById('lastPingText');
+    this.headerSystemStatus = document.getElementById('headerSystemStatus');
 
     this.quadrants = {
       1: { el: document.getElementById('quadrantA'), tag: document.getElementById('tagA'), ray: document.getElementById('rayA'), name: 'Zone A' },
@@ -188,11 +203,10 @@ class ZoneDetectionApp {
       4: { el: document.getElementById('quadrantD'), tag: document.getElementById('tagD'), ray: document.getElementById('rayD'), name: 'Zone D' }
     };
 
-    this.btnHelp = document.getElementById('btnHelp');
-    this.helpPopover = document.getElementById('helpPopover');
-    this.btnClosePopover = document.getElementById('btnClosePopover');
-    this.linkOpenConfig = document.getElementById('linkOpenConfig');
+    // Subtle Diagnostics Link
+    this.btnOpenConfigSubtle = document.getElementById('btnOpenConfigSubtle');
 
+    // Configuration Modal Elements
     this.configModal = document.getElementById('configModal');
     this.btnCloseModal = document.getElementById('btnCloseModal');
     this.btnSaveCloseModal = document.getElementById('btnSaveCloseModal');
@@ -200,6 +214,13 @@ class ZoneDetectionApp {
     this.btnCopyEndpoint = document.getElementById('btnCopyEndpoint');
     this.networkList = document.getElementById('networkList');
 
+    // Live Telemetry fields in Modal
+    this.diagSignalCode = document.getElementById('diagSignalCode');
+    this.diagZoneName = document.getElementById('diagZoneName');
+    this.diagTimestamp = document.getElementById('diagTimestamp');
+    this.diagClientIp = document.getElementById('diagClientIp');
+
+    // Modes
     this.radioAppMode = document.getElementById('radioAppMode');
     this.radioRealMode = document.getElementById('radioRealMode');
     this.labelAppMode = document.getElementById('labelAppMode');
@@ -207,70 +228,74 @@ class ZoneDetectionApp {
   }
 
   initEventListeners() {
-    // Help Popover
-    this.btnHelp.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.helpPopover.classList.toggle('hidden');
-    });
+    // Subtle Diagnostics trigger opens configuration modal
+    if (this.btnOpenConfigSubtle) {
+      this.btnOpenConfigSubtle.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.openConfigModal();
+      });
+    }
 
-    this.btnClosePopover.addEventListener('click', () => {
-      this.helpPopover.classList.add('hidden');
-    });
+    if (this.btnCloseModal) {
+      this.btnCloseModal.addEventListener('click', () => this.closeConfigModal());
+    }
 
-    document.addEventListener('click', (e) => {
-      if (!this.helpPopover.contains(e.target) && e.target !== this.btnHelp) {
-        this.helpPopover.classList.add('hidden');
-      }
-    });
+    if (this.btnSaveCloseModal) {
+      this.btnSaveCloseModal.addEventListener('click', () => this.closeConfigModal());
+    }
 
-    // Configuration Modal
-    this.linkOpenConfig.addEventListener('click', (e) => {
-      e.preventDefault();
-      this.helpPopover.classList.add('hidden');
-      this.openConfigModal();
-    });
-
-    this.btnCloseModal.addEventListener('click', () => this.closeConfigModal());
-    this.btnSaveCloseModal.addEventListener('click', () => this.closeConfigModal());
+    // Close modal on clicking backdrop
+    if (this.configModal) {
+      this.configModal.addEventListener('click', (e) => {
+        if (e.target === this.configModal) {
+          this.closeConfigModal();
+        }
+      });
+    }
 
     // Copy endpoint button
-    this.btnCopyEndpoint.addEventListener('click', () => {
-      const url = this.inputEndpointUrl.value;
-      if (url && url !== 'Detecting...') {
-        navigator.clipboard.writeText(url).then(() => {
-          const original = this.btnCopyEndpoint.textContent;
-          this.btnCopyEndpoint.textContent = 'Copied!';
-          this.btnCopyEndpoint.style.background = '#00e5a3';
-          this.btnCopyEndpoint.style.color = '#000';
-          setTimeout(() => {
-            this.btnCopyEndpoint.textContent = original;
-            this.btnCopyEndpoint.style.background = '';
-            this.btnCopyEndpoint.style.color = '';
-          }, 1500);
-        });
-      }
-    });
+    if (this.btnCopyEndpoint) {
+      this.btnCopyEndpoint.addEventListener('click', () => {
+        const url = this.inputEndpointUrl.value;
+        if (url && url !== 'Detecting...') {
+          navigator.clipboard.writeText(url).then(() => {
+            const original = this.btnCopyEndpoint.textContent;
+            this.btnCopyEndpoint.textContent = 'Copied!';
+            this.btnCopyEndpoint.style.background = '#00e5a3';
+            this.btnCopyEndpoint.style.color = '#000';
+            setTimeout(() => {
+              this.btnCopyEndpoint.textContent = original;
+              this.btnCopyEndpoint.style.background = '';
+              this.btnCopyEndpoint.style.color = '';
+            }, 1500);
+          });
+        }
+      });
+    }
 
     // Mode Selector
     const onModeChange = (mode) => {
       this.activeMode = mode;
       if (mode === 'Application Mode') {
-        this.radioAppMode.checked = true;
-        this.labelAppMode.classList.add('active');
-        this.labelRealMode.classList.remove('active');
+        if (this.radioAppMode) this.radioAppMode.checked = true;
+        if (this.labelAppMode) this.labelAppMode.classList.add('active');
+        if (this.labelRealMode) this.labelRealMode.classList.remove('active');
       } else {
-        this.radioRealMode.checked = true;
-        this.labelRealMode.classList.add('active');
-        this.labelAppMode.classList.remove('active');
+        if (this.radioRealMode) this.radioRealMode.checked = true;
+        if (this.labelRealMode) this.labelRealMode.classList.add('active');
+        if (this.labelAppMode) this.labelAppMode.classList.remove('active');
       }
-      this.headerModeBadge.textContent = mode.toUpperCase();
       if (window.electronAPI && window.electronAPI.setMode) {
         window.electronAPI.setMode(mode);
       }
     };
 
-    this.radioAppMode.addEventListener('change', () => onModeChange('Application Mode'));
-    this.radioRealMode.addEventListener('change', () => onModeChange('Real Mode'));
+    if (this.radioAppMode) {
+      this.radioAppMode.addEventListener('change', () => onModeChange('Application Mode'));
+    }
+    if (this.radioRealMode) {
+      this.radioRealMode.addEventListener('change', () => onModeChange('Real Mode'));
+    }
 
     // Manual Simulation buttons
     document.querySelectorAll('.btn-sim').forEach((btn) => {
@@ -282,7 +307,7 @@ class ZoneDetectionApp {
           this.handleSignal({
             signal: sig,
             zone: this.getZoneName(sig),
-            clientIp: '127.0.0.1 (Local Test)',
+            clientIp: '127.0.0.1 (Manual Test)',
             formattedTime: new Date().toLocaleTimeString()
           });
         }
@@ -312,21 +337,17 @@ class ZoneDetectionApp {
     const sig = Number(signalData.signal);
     this.currentSignal = sig;
 
-    console.log('[App] Applying Signal:', sig, signalData.zone);
+    const zoneName = signalData.zone || this.getZoneName(sig);
+    const timeStr = signalData.formattedTime || new Date().toLocaleTimeString();
+    const clientStr = signalData.clientIp || 'Network Receiver';
 
-    // Update Header Badges
-    if (sig === 0) {
-      this.headerSignalBadge.textContent = 'SIGNAL: 0 (NO DETECTION)';
-      this.headerSignalBadge.classList.remove('active');
-    } else {
-      this.headerSignalBadge.textContent = `SIGNAL: ${sig} (${signalData.zone || this.getZoneName(sig)})`;
-      this.headerSignalBadge.classList.add('active');
-    }
+    // Update Diagnostics telemetry in Modal
+    if (this.diagSignalCode) this.diagSignalCode.textContent = sig;
+    if (this.diagZoneName) this.diagZoneName.textContent = zoneName;
+    if (this.diagTimestamp) this.diagTimestamp.textContent = timeStr;
+    if (this.diagClientIp) this.diagClientIp.textContent = clientStr;
 
-    // Update Footer Status
-    this.lastPingText.textContent = `Last Signal: ${sig} (${signalData.zone}) at ${signalData.formattedTime || 'Now'} [${signalData.clientIp || 'Network'}]`;
-
-    // Update 4 Quadrants & CSI Rays
+    // Update 4 Quadrants & CSI Rays instantly
     for (const [zoneId, quad] of Object.entries(this.quadrants)) {
       const isThisZoneActive = Number(zoneId) === sig;
       if (isThisZoneActive) {
@@ -340,7 +361,7 @@ class ZoneDetectionApp {
       }
     }
 
-    // Update 4 Waveform Channels
+    // Update 4 Waveform Channels instantly
     for (const [zoneId, channel] of Object.entries(this.channels)) {
       const isThisZoneActive = Number(zoneId) === sig;
       channel.setActive(isThisZoneActive);
@@ -365,31 +386,34 @@ class ZoneDetectionApp {
   updateNetworkUI(networkInfo, port = 5000) {
     if (!networkInfo) return;
     const endpoint = networkInfo.endpointUrl || `http://${networkInfo.primaryIp}:${port}/api/signal`;
-    const display = networkInfo.endpointDisplay || `${networkInfo.primaryIp}:${port}`;
 
-    this.headerEndpointStatus.textContent = `ENDPOINT: ${display}`;
-    this.quickEndpointText.textContent = endpoint;
-    this.inputEndpointUrl.value = endpoint;
+    if (this.inputEndpointUrl) {
+      this.inputEndpointUrl.value = endpoint;
+    }
 
     // Populate network adapters in modal
-    this.networkList.innerHTML = '';
-    if (networkInfo.allInterfaces && networkInfo.allInterfaces.length > 0) {
-      networkInfo.allInterfaces.forEach((iface, idx) => {
-        const item = document.createElement('div');
-        item.className = 'network-item' + (idx === 0 ? ' primary' : '');
-        item.innerHTML = `
-          <span class="network-name">${iface.name} ${iface.isWifi ? '(Wi-Fi)' : iface.isEthernet ? '(Ethernet)' : ''}</span>
-          <span class="network-ip">${iface.address}:${port}</span>
-        `;
-        this.networkList.appendChild(item);
-      });
-    } else {
-      this.networkList.innerHTML = `<div class="network-item"><span class="network-ip">${networkInfo.primaryIp}:${port}</span></div>`;
+    if (this.networkList) {
+      this.networkList.innerHTML = '';
+      if (networkInfo.allInterfaces && networkInfo.allInterfaces.length > 0) {
+        networkInfo.allInterfaces.forEach((iface, idx) => {
+          const item = document.createElement('div');
+          item.className = 'network-item' + (idx === 0 ? ' primary' : '');
+          item.innerHTML = `
+            <span class="network-name">${iface.name} ${iface.isWifi ? '(Wi-Fi)' : iface.isEthernet ? '(Ethernet)' : ''}</span>
+            <span class="network-ip">${iface.address}:${port}</span>
+          `;
+          this.networkList.appendChild(item);
+        });
+      } else {
+        this.networkList.innerHTML = `<div class="network-item"><span class="network-ip">${networkInfo.primaryIp}:${port}</span></div>`;
+      }
     }
   }
 
   async openConfigModal() {
-    this.configModal.classList.remove('hidden');
+    if (this.configModal) {
+      this.configModal.classList.remove('hidden');
+    }
     if (window.electronAPI && window.electronAPI.getNetworkInfo) {
       const info = await window.electronAPI.getNetworkInfo();
       this.updateNetworkUI(info);
@@ -397,7 +421,9 @@ class ZoneDetectionApp {
   }
 
   closeConfigModal() {
-    this.configModal.classList.add('hidden');
+    if (this.configModal) {
+      this.configModal.classList.add('hidden');
+    }
   }
 
   startAnimationLoop() {

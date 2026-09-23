@@ -18,12 +18,11 @@
         <span class="topic-title">RF / CSI ZONE DETECTION MONITOR</span>
       </div>
       <div class="header-center">
-        <span id="headerModeBadge" class="badge badge-mode">APPLICATION MODE</span>
-        <span id="headerSignalBadge" class="badge badge-signal">SIGNAL: 0 (NO DETECTION)</span>
+        <span class="header-channel-tag">CHANNEL: CH-06 (2.437 GHz)</span>
       </div>
       <div class="header-right">
         <span class="status-indicator"></span>
-        <span id="headerEndpointStatus" class="status-text">LISTENING: ...</span>
+        <span id="headerSystemStatus" class="status-text">SYSTEM NORMAL</span>
       </div>
     </header>
 
@@ -170,40 +169,21 @@
       </section>
     </main>
 
-    <!-- Footer Bar with Question-Mark Help Section -->
+    <!-- Footer Bar with Subtle Diagnostics Link -->
     <footer class="app-footer">
       <div class="footer-left">
-        <button id="btnHelp" class="btn-help" title="View Connection & Mode Settings">?</button>
-        <span class="footer-hint">Click ? for Mobile Endpoint URL & Modes</span>
-      </div>
-      <div class="footer-center">
-        <span id="footerEndpointQuick">Mobile Endpoint: <strong id="quickEndpointText">Detecting...</strong></span>
+        <span class="footer-telemetry">CSI Subcarrier Matrix: 64 Tones • Resolution: 40 MHz</span>
       </div>
       <div class="footer-right">
-        <span class="last-ping" id="lastPingText">Last Signal: None</span>
+        <span class="footer-diag-text">Diagnostics: <span id="btnOpenConfigSubtle" class="subtle-clickable" title="Open Network & Parameter Settings">Station Parameters &amp; Config</span></span>
       </div>
     </footer>
 
-    <!-- Help Popover Near Button -->
-    <div id="helpPopover" class="help-popover hidden">
-      <div class="popover-arrow"></div>
-      <div class="popover-header">
-        <h4>Zone Detection Help</h4>
-        <button id="btnClosePopover" class="btn-close-popover">&times;</button>
-      </div>
-      <div class="popover-body">
-        <p>This Windows application listens for direction & zone signals from your Android phone over your local Wi-Fi network.</p>
-        <div class="popover-link-box">
-          <a href="#" id="linkOpenConfig" class="hyperlink">⚙️ Open Configuration & Network Settings</a>
-        </div>
-      </div>
-    </div>
-
-    <!-- Configuration Modal -->
+    <!-- Configuration & Diagnostics Modal -->
     <div id="configModal" class="modal-backdrop hidden">
       <div class="modal-card">
         <div class="modal-header">
-          <h3>Network & Mode Configuration</h3>
+          <h3>Network & Station Configuration</h3>
           <button id="btnCloseModal" class="btn-close-modal">&times;</button>
         </div>
 
@@ -226,6 +206,29 @@
             </div>
           </div>
 
+          <!-- Live Signal Diagnostics -->
+          <div class="form-group">
+            <label class="form-label">LAST RECEIVED MOBILE TELEMETRY:</label>
+            <div class="signal-diag-box">
+              <div class="diag-row">
+                <span class="diag-label">Signal Code:</span>
+                <span id="diagSignalCode" class="diag-value">0</span>
+              </div>
+              <div class="diag-row">
+                <span class="diag-label">Active Zone:</span>
+                <span id="diagZoneName" class="diag-value">No Detection</span>
+              </div>
+              <div class="diag-row">
+                <span class="diag-label">Timestamp:</span>
+                <span id="diagTimestamp" class="diag-value">--:--:--</span>
+              </div>
+              <div class="diag-row">
+                <span class="diag-label">Source Client:</span>
+                <span id="diagClientIp" class="diag-value">--</span>
+              </div>
+            </div>
+          </div>
+
           <!-- Mode Selection -->
           <div class="form-group">
             <label class="form-label">OPERATING MODE:</label>
@@ -241,8 +244,8 @@
               <label class="mode-option" id="labelRealMode">
                 <input type="radio" name="opMode" id="radioRealMode" value="Real Mode">
                 <div class="mode-content">
-                  <span class="mode-name">Real Mode (Future CSI Processing)</span>
-                  <span class="mode-desc">Placeholder for direct ESP32 CSI packet ingestion and raw subcarrier processing (to be integrated in future phases).</span>
+                  <span class="mode-name">Real Mode (Future CSI Ingestion)</span>
+                  <span class="mode-desc">Direct ESP32 CSI packet ingestion and raw subcarrier processing.</span>
                 </div>
               </label>
             </div>
@@ -250,7 +253,7 @@
 
           <!-- Manual Signal Simulation -->
           <div class="form-group simulation-group">
-            <label class="form-label">INSTANT SIGNAL TEST / SIMULATION:</label>
+            <label class="form-label">SIGNAL TEST / SIMULATION:</label>
             <div class="sim-buttons">
               <button class="btn-sim" data-signal="0">Signal 0 (None)</button>
               <button class="btn-sim" data-signal="1">Signal 1 (Zone A)</button>
