@@ -1,0 +1,35 @@
+{
+  "name": "zone-detection-app",
+  "version": "1.0.0",
+  "description": "Windows Zone Detection Application with Embedded Signal Receiver and Real-time CSI Visualization",
+  "main": "src/main.js",
+  "author": "Antigravity",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "test": "node tests/test_server.js",
+    "build:exe": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.zonedetection.app",
+    "productName": "ZoneDetectionApp",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "ZoneDetectionApp.exe"
+    }
+  }
+}

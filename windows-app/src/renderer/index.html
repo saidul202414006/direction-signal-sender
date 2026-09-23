@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zone Detection System</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header bar -->
+    <header class="app-header">
+      <div class="header-left">
+        <span class="topic-label">TOPIC:</span>
+        <span class="topic-title">RF / CSI ZONE DETECTION MONITOR</span>
+      </div>
+      <div class="header-center">
+        <span id="headerModeBadge" class="badge badge-mode">APPLICATION MODE</span>
+        <span id="headerSignalBadge" class="badge badge-signal">SIGNAL: 0 (NO DETECTION)</span>
+      </div>
+      <div class="header-right">
+        <span class="status-indicator"></span>
+        <span id="headerEndpointStatus" class="status-text">LISTENING: ...</span>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Top Section: Rectangular Room Diagram -->
+      <section class="room-section">
+        <div class="room-frame" id="roomFrame">
+          <!-- CSI Ray SVG Layer -->
+          <svg class="csi-rays-svg" id="csiRaysSvg" viewBox="0 0 1000 600" preserveAspectRatio="none">
+            <!-- Ray to Zone B (Top-Left) -->
+            <line id="rayB" x1="500" y1="300" x2="60" y2="40" class="csi-ray" />
+            <!-- Ray to Zone A (Top-Right) -->
+            <line id="rayA" x1="500" y1="300" x2="940" y2="40" class="csi-ray" />
+            <!-- Ray to Zone C (Bottom-Left) -->
+            <line id="rayC" x1="500" y1="300" x2="60" y2="560" class="csi-ray" />
+            <!-- Ray to Zone D (Bottom-Right) -->
+            <line id="rayD" x1="500" y1="300" x2="940" y2="560" class="csi-ray" />
+          </svg>
+
+          <!-- 4 Room Quadrants -->
+          <div class="quadrant quadrant-b" id="quadrantB">
+            <span class="zone-label">Zone B</span>
+            <span class="zone-status-tag" id="tagB">INACTIVE</span>
+          </div>
+          <div class="quadrant quadrant-a" id="quadrantA">
+            <span class="zone-label">Zone A</span>
+            <span class="zone-status-tag" id="tagA">INACTIVE</span>
+          </div>
+          <div class="quadrant quadrant-c" id="quadrantC">
+            <span class="zone-label">Zone C</span>
+            <span class="zone-status-tag" id="tagC">INACTIVE</span>
+          </div>
+          <div class="quadrant quadrant-d" id="quadrantD">
+            <span class="zone-label">Zone D</span>
+            <span class="zone-status-tag" id="tagD">INACTIVE</span>
+          </div>
+
+          <!-- Hardware Nodes Overlay -->
+          <!-- Top Left RX -->
+          <div class="hardware-node rx-node rx-top-left" id="nodeRxB">
+            <div class="node-box">
+              <span class="node-title">ESP32-S3</span>
+              <span class="node-sub">RX</span>
+            </div>
+            <div class="node-tag">(RX)</div>
+          </div>
+
+          <!-- Top Right RX -->
+          <div class="hardware-node rx-node rx-top-right" id="nodeRxA">
+            <div class="node-box">
+              <span class="node-title">ESP32-S3</span>
+              <span class="node-sub">RX</span>
+            </div>
+            <div class="node-tag">(RX)</div>
+          </div>
+
+          <!-- Center TX -->
+          <div class="hardware-node tx-node tx-center" id="nodeTx">
+            <div class="tx-arrow-left">← TX</div>
+            <div class="node-box tx-box">
+              <span class="node-title">ESP32 DevKit V1</span>
+              <span class="node-sub">TX BEACON</span>
+            </div>
+          </div>
+
+          <!-- Bottom Left RX -->
+          <div class="hardware-node rx-node rx-bottom-left" id="nodeRxC">
+            <div class="node-box">
+              <span class="node-title">AM036</span>
+              <span class="node-sub">RX</span>
+            </div>
+            <div class="node-tag">(RX)</div>
+          </div>
+
+          <!-- Bottom Right RX -->
+          <div class="hardware-node rx-node rx-bottom-right" id="nodeRxD">
+            <div class="node-box">
+              <span class="node-title">AM036</span>
+              <span class="node-sub">RX</span>
+            </div>
+            <div class="node-tag">(RX)</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Bottom Section: Four Zone Signal Panels -->
+      <section class="signals-section">
+        <!-- Zone A Signal Panel -->
+        <div class="signal-card" id="cardSignalA">
+          <div class="signal-header">
+            <span class="signal-title">ZONE A Signal:</span>
+            <span class="presence-indicator" id="presenceA">Below Threshold</span>
+          </div>
+          <div class="graph-wrapper">
+            <canvas id="canvasA" class="signal-canvas"></canvas>
+            <div class="presence-line">
+              <span class="presence-label">Level for Presence</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Zone B Signal Panel -->
+        <div class="signal-card" id="cardSignalB">
+          <div class="signal-header">
+            <span class="signal-title">ZONE B Signal:</span>
+            <span class="presence-indicator" id="presenceB">Below Threshold</span>
+          </div>
+          <div class="graph-wrapper">
+            <canvas id="canvasB" class="signal-canvas"></canvas>
+            <div class="presence-line">
+              <span class="presence-label">Level for Presence</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Zone C Signal Panel -->
+        <div class="signal-card" id="cardSignalC">
+          <div class="signal-header">
+            <span class="signal-title">ZONE C Signal:</span>
+            <span class="presence-indicator" id="presenceC">Below Threshold</span>
+          </div>
+          <div class="graph-wrapper">
+            <canvas id="canvasC" class="signal-canvas"></canvas>
+            <div class="presence-line">
+              <span class="presence-label">Level for Presence</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Zone D Signal Panel -->
+        <div class="signal-card" id="cardSignalD">
+          <div class="signal-header">
+            <span class="signal-title">ZONE D Signal:</span>
+            <span class="presence-indicator" id="presenceD">Below Threshold</span>
+          </div>
+          <div class="graph-wrapper">
+            <canvas id="canvasD" class="signal-canvas"></canvas>
+            <div class="presence-line">
+              <span class="presence-label">Level for Presence</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer Bar with Question-Mark Help Section -->
+    <footer class="app-footer">
+      <div class="footer-left">
+        <button id="btnHelp" class="btn-help" title="View Connection & Mode Settings">?</button>
+        <span class="footer-hint">Click ? for Mobile Endpoint URL & Modes</span>
+      </div>
+      <div class="footer-center">
+        <span id="footerEndpointQuick">Mobile Endpoint: <strong id="quickEndpointText">Detecting...</strong></span>
+      </div>
+      <div class="footer-right">
+        <span class="last-ping" id="lastPingText">Last Signal: None</span>
+      </div>
+    </footer>
+
+    <!-- Help Popover Near Button -->
+    <div id="helpPopover" class="help-popover hidden">
+      <div class="popover-arrow"></div>
+      <div class="popover-header">
+        <h4>Zone Detection Help</h4>
+        <button id="btnClosePopover" class="btn-close-popover">&times;</button>
+      </div>
+      <div class="popover-body">
+        <p>This Windows application listens for direction & zone signals from your Android phone over your local Wi-Fi network.</p>
+        <div class="popover-link-box">
+          <a href="#" id="linkOpenConfig" class="hyperlink">⚙️ Open Configuration & Network Settings</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Configuration Modal -->
+    <div id="configModal" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>Network & Mode Configuration</h3>
+          <button id="btnCloseModal" class="btn-close-modal">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <!-- Receive Endpoint Display -->
+          <div class="form-group">
+            <label class="form-label">CURRENT RECEIVE ENDPOINT (Mobile App Target):</label>
+            <div class="endpoint-input-group">
+              <input type="text" id="inputEndpointUrl" readonly class="endpoint-input" value="Detecting...">
+              <button id="btnCopyEndpoint" class="btn-copy">Copy URL</button>
+            </div>
+            <p class="field-hint">Enter this exact URL into the <strong>Endpoint URL</strong> box in your mobile app, then click <em>Save URL</em>.</p>
+          </div>
+
+          <!-- Detected Network Interfaces -->
+          <div class="form-group">
+            <label class="form-label">DETECTED LOCAL NETWORK INTERFACES:</label>
+            <div id="networkList" class="network-list">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+
+          <!-- Mode Selection -->
+          <div class="form-group">
+            <label class="form-label">OPERATING MODE:</label>
+            <div class="mode-selector">
+              <label class="mode-option active" id="labelAppMode">
+                <input type="radio" name="opMode" id="radioAppMode" value="Application Mode" checked>
+                <div class="mode-content">
+                  <span class="mode-name">Application Mode (Active)</span>
+                  <span class="mode-desc">Receives mobile app signals (0: None, 1: Zone A, 2: Zone B, 3: Zone C, 4: Zone D) and visualizes zones and waveform changes.</span>
+                </div>
+              </label>
+
+              <label class="mode-option" id="labelRealMode">
+                <input type="radio" name="opMode" id="radioRealMode" value="Real Mode">
+                <div class="mode-content">
+                  <span class="mode-name">Real Mode (Future CSI Processing)</span>
+                  <span class="mode-desc">Placeholder for direct ESP32 CSI packet ingestion and raw subcarrier processing (to be integrated in future phases).</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Manual Signal Simulation -->
+          <div class="form-group simulation-group">
+            <label class="form-label">INSTANT SIGNAL TEST / SIMULATION:</label>
+            <div class="sim-buttons">
+              <button class="btn-sim" data-signal="0">Signal 0 (None)</button>
+              <button class="btn-sim" data-signal="1">Signal 1 (Zone A)</button>
+              <button class="btn-sim" data-signal="2">Signal 2 (Zone B)</button>
+              <button class="btn-sim" data-signal="3">Signal 3 (Zone C)</button>
+              <button class="btn-sim" data-signal="4">Signal 4 (Zone D)</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button id="btnSaveCloseModal" class="btn-primary">Done</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

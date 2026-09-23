@@ -1,0 +1,57 @@
+name: Build Windows Zone Detection Application (.exe)
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & Package Windows .exe
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: windows-app/package.json
+
+      - name: Run Unit & Signal Tests
+        working-directory: windows-app
+        run: node tests/test_server.js
+
+      - name: Install Windows App Dependencies
+        working-directory: windows-app
+        run: npm install
+
+      - name: Build Standalone Windows Executable (.exe)
+        working-directory: windows-app
+        run: npm run build:exe
+
+      - name: Upload Windows Executable Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zone-detection-windows-app-exe
+          path: windows-app/dist/*.exe
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Upload to GitHub Releases
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: windows-app/dist/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
