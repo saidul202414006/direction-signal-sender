@@ -1,24 +1,45 @@
-// Zone Detection Application Renderer Logic (v1.4.1)
+// Zone Detection Application Renderer Logic (v1.4.2)
 
 class WaveformChannel {
-  constructor(canvasId, cardId, indicatorId, isInitiallyActive = false) {
+  constructor(canvasId, cardId, indicatorId, ampId, varId, snrId, isInitiallyActive = false) {
     this.canvas = document.getElementById(canvasId);
     this.card = document.getElementById(cardId);
     this.indicator = document.getElementById(indicatorId);
+    this.ampEl = document.getElementById(ampId);
+    this.varEl = document.getElementById(varId);
+    this.snrEl = document.getElementById(snrId);
     this.ctx = this.canvas.getContext('2d');
     this.isActive = isInitiallyActive;
 
     this.pointsCount = 140;
-    // Inactive baseline is ~0.24 (strictly < 0.72 threshold)
-    this.data = new Array(this.pointsCount).fill(0).map(() => 0.22 + (Math.random() - 0.5) * 0.08);
 
-    // Multi-harmonic non-repeating noise seeds (irrational frequencies)
+    // Physical baseline tracking (Continuous Smooth Attack / Decay)
+    // Threshold is 0.72. Inactive target: ~0.25, Active target: ~0.82
+    this.targetBase = isInitiallyActive ? 0.82 : 0.25;
+    this.currentBase = this.targetBase;
+
+    // Buffer initialized with gentle random noise
+    this.data = new Array(this.pointsCount).fill(0).map(() => 0.24 + (Math.random() - 0.5) * 0.08);
+
+    // Multi-harmonic inharmonic frequency seeds (irrational numbers guarantee non-repeating pattern)
     this.t = Math.random() * 500;
-    this.speed = 0.05;
+    this.speed = 0.048;
+    this.macroPhase = Math.random() * 100;
+    this.variancePhase = Math.random() * 100;
+
     this.seed1 = 0.71828 + Math.random() * 0.4;
     this.seed2 = 1.41421 + Math.random() * 0.5;
     this.seed3 = 3.14159 + Math.random() * 0.8;
     this.seed4 = 5.67128 + Math.random() * 1.5;
+
+    // Dynamic CSI Telemetry state
+    this.currentAmp = isInitiallyActive ? 41.2 : 18.4;
+    this.currentVar = isInitiallyActive ? 1.05 : 0.05;
+    this.currentSNR = isInitiallyActive ? 28.4 : 14.2;
+
+    this.targetAmp = this.currentAmp;
+    this.targetVar = this.currentVar;
+    this.targetSNR = this.currentSNR;
 
     this.resizeCanvas();
     window.addEventListener('resize', () => this.resizeCanvas());
@@ -35,44 +56,35 @@ class WaveformChannel {
   }
 
   setActive(active) {
-    const wasActive = this.isActive;
     this.isActive = active;
+    this.targetBase = active ? 0.82 : 0.25;
 
     if (active) {
       this.card.classList.add('active');
       this.indicator.textContent = 'ABOVE THRESHOLD';
-
-      // Instant excitation: Elevate existing buffer points immediately above threshold (0.72)
-      // Eliminates the 2.3-second buffer crawl delay!
-      if (!wasActive) {
-        for (let i = 0; i < this.pointsCount; i++) {
-          const jitter = (Math.random() - 0.5) * 0.12;
-          const ripple = Math.sin(i * 0.28) * 0.05;
-          let val = 0.81 + jitter + ripple;
-          if (val < 0.74) val = 0.74 + Math.random() * 0.06;
-          if (val > 0.96) val = 0.96;
-          this.data[i] = val;
-        }
-      }
     } else {
       this.card.classList.remove('active');
       this.indicator.textContent = 'Below Threshold';
-
-      // Instant relaxation: Drop existing buffer points immediately to baseline noise (< 0.72)
-      if (wasActive) {
-        for (let i = 0; i < this.pointsCount; i++) {
-          const jitter = (Math.random() - 0.5) * 0.08;
-          let val = 0.24 + jitter;
-          if (val > 0.45) val = 0.42;
-          this.data[i] = val;
-        }
-      }
     }
   }
 
-  // Generates authentic, non-repeating RF / CSI subcarrier fluctuations
+  // Generates authentic, non-repeating RF / CSI fluctuations with continuous natural transition
   nextSample() {
     this.t += this.speed;
+    this.macroPhase += 0.007;
+    this.variancePhase += 0.011;
+
+    // Continuous baseline relaxation (Exponential Smoothing Filter)
+    // Attack rate is smooth and continuous without any vertical frame jump
+    const rate = this.isActive ? 0.065 : 0.045;
+    this.currentBase += (this.targetBase - this.currentBase) * rate;
+
+    // Long-period Macro Wandering (Breathing Motion: prevents active line from locking to a fixed horizontal level)
+    // Cycles smoothly over several seconds (drifts naturally between 0.76 and 0.89 when active)
+    const macroWander = (Math.sin(this.macroPhase * 0.81) * 0.045 + Math.cos(this.macroPhase * 1.47) * 0.035);
+
+    // Evolving variance modulation (burstiness varies naturally like multipath Doppler in physical space)
+    const varMod = 0.75 + 0.35 * Math.sin(this.variancePhase * 0.93 + Math.cos(this.macroPhase));
 
     // Multi-frequency inharmonic synthesis prevents visible repetition
     const w1 = Math.sin(this.t * this.seed1 * 0.38);
@@ -83,30 +95,77 @@ class WaveformChannel {
     // High-frequency Gaussian-distributed RF micro-jitter
     const rfJitter = ((Math.random() + Math.random() + Math.random()) - 1.5) * 0.045;
 
-    // Occasional subcarrier multipath spike
+    // Occasional subcarrier multipath micro-spike
     const multipathSpike = Math.random() > 0.94 ? (Math.random() - 0.5) * 0.07 : 0;
 
     if (this.isActive) {
       // ACTIVE ZONE: Fluctuates vigorously strictly ABOVE the 0.72 Threshold
-      const baseLevel = 0.82;
-      const variation = (w1 * 0.035 + w2 * 0.04 + w3 * 0.03 + w4 * 0.02 + rfJitter * 1.4 + multipathSpike);
-      let val = baseLevel + variation;
+      // Base level drifts between 0.78 and 0.88 via macroWander
+      const effectiveBase = this.currentBase + macroWander;
+      const variation = (w1 * 0.035 + w2 * 0.04 + w3 * 0.03 + w4 * 0.02 + rfJitter * 1.3 + multipathSpike) * varMod;
+      const val = effectiveBase + variation;
       // Guarantee it stays strictly above the 0.72 threshold line
-      return Math.min(0.97, Math.max(0.74, val));
+      return Math.min(0.97, Math.max(0.735, val));
     } else {
-      // INACTIVE ZONE: Fluctuates with natural background noise strictly BELOW the 0.72 Threshold
-      const baseLevel = 0.25;
-      const variation = (w1 * 0.03 + w2 * 0.035 + w3 * 0.02 + rfJitter + multipathSpike * 0.4);
-      let val = baseLevel + variation;
+      // INACTIVE ZONE: Natural ambient wireless noise strictly BELOW the 0.72 Threshold
+      const effectiveBase = this.currentBase + macroWander * 0.3;
+      const variation = (w1 * 0.025 + w2 * 0.03 + w3 * 0.02 + rfJitter * 0.9 + multipathSpike * 0.3) * varMod;
+      const val = effectiveBase + variation;
       // Guarantee it stays comfortably below the 0.72 threshold line
-      return Math.min(0.48, Math.max(0.12, val));
+      return Math.min(0.46, Math.max(0.12, val));
     }
+  }
+
+  // Update dynamic CSI Telemetry metrics gradually (EMA low-pass filter)
+  updateMetrics() {
+    if (this.isActive) {
+      // Elevated multipath amplitude, high variance, enhanced SNR with organic drift
+      const wander = Math.sin(this.macroPhase * 1.2) * 2.5;
+      this.targetAmp = 40.5 + wander + (Math.random() - 0.5) * 1.2;
+      this.targetVar = 1.08 + Math.sin(this.variancePhase) * 0.25 + (Math.random() - 0.5) * 0.08;
+      this.targetSNR = 28.5 + wander * 0.4 + (Math.random() - 0.5) * 0.6;
+    } else {
+      // Low ambient noise, minimal variance
+      this.targetAmp = 18.4 + (Math.random() - 0.5) * 0.4;
+      this.targetVar = 0.05 + (Math.random() - 0.5) * 0.015;
+      this.targetSNR = 14.1 + (Math.random() - 0.5) * 0.3;
+    }
+
+    // Continuous smooth relaxation (alpha = 0.04)
+    this.currentAmp += (this.targetAmp - this.currentAmp) * 0.04;
+    this.currentVar += (this.targetVar - this.currentVar) * 0.04;
+    this.currentSNR += (this.targetSNR - this.currentSNR) * 0.04;
+
+    if (this.currentVar < 0.02) this.currentVar = 0.02;
+
+    if (this.ampEl) this.ampEl.textContent = this.currentAmp.toFixed(1) + ' dB';
+    if (this.varEl) this.varEl.textContent = this.currentVar.toFixed(2);
+    if (this.snrEl) this.snrEl.textContent = this.currentSNR.toFixed(1) + ' dB';
   }
 
   update() {
     const val = this.nextSample();
     this.data.shift();
     this.data.push(val);
+
+    // Continuous wave surge: If transitioning towards active or inactive,
+    // smoothly lift/lower existing buffer points frame-by-frame
+    // Eliminates sudden step jumps while providing an organic physical surge over ~200ms
+    if (this.isActive && this.currentBase < 0.80) {
+      for (let i = 0; i < this.pointsCount; i++) {
+        if (this.data[i] < 0.735) {
+          this.data[i] += (0.76 - this.data[i]) * 0.08;
+        }
+      }
+    } else if (!this.isActive && this.currentBase > 0.28) {
+      for (let i = 0; i < this.pointsCount; i++) {
+        if (this.data[i] > 0.45) {
+          this.data[i] += (0.28 - this.data[i]) * 0.08;
+        }
+      }
+    }
+
+    this.updateMetrics();
   }
 
   draw() {
@@ -136,7 +195,6 @@ class WaveformChannel {
       if (i === 0) {
         ctx.moveTo(x, y);
       } else {
-        // Direct segment lines represent realistic digital signal oscilloscope traces
         ctx.lineTo(x, y);
       }
     }
@@ -186,10 +244,10 @@ class ZoneDetectionApp {
 
   initWaveforms() {
     this.channels = {
-      1: new WaveformChannel('canvasA', 'cardSignalA', 'presenceA', false),
-      2: new WaveformChannel('canvasB', 'cardSignalB', 'presenceB', false),
-      3: new WaveformChannel('canvasC', 'cardSignalC', 'presenceC', false),
-      4: new WaveformChannel('canvasD', 'cardSignalD', 'presenceD', false)
+      1: new WaveformChannel('canvasA', 'cardSignalA', 'presenceA', 'ampA', 'varA', 'snrA', false),
+      2: new WaveformChannel('canvasB', 'cardSignalB', 'presenceB', 'ampB', 'varB', 'snrB', false),
+      3: new WaveformChannel('canvasC', 'cardSignalC', 'presenceC', 'ampC', 'varC', 'snrC', false),
+      4: new WaveformChannel('canvasD', 'cardSignalD', 'presenceD', 'ampD', 'varD', 'snrD', false)
     };
   }
 
@@ -203,8 +261,11 @@ class ZoneDetectionApp {
       4: { el: document.getElementById('quadrantD'), tag: document.getElementById('tagD'), ray: document.getElementById('rayD'), name: 'Zone D' }
     };
 
-    // Subtle Diagnostics Link
-    this.btnOpenConfigSubtle = document.getElementById('btnOpenConfigSubtle');
+    // Help Button & Popover
+    this.btnHelp = document.getElementById('btnHelp');
+    this.helpPopover = document.getElementById('helpPopover');
+    this.btnClosePopover = document.getElementById('btnClosePopover');
+    this.linkOpenConfig = document.getElementById('linkOpenConfig');
 
     // Configuration Modal Elements
     this.configModal = document.getElementById('configModal');
@@ -228,13 +289,38 @@ class ZoneDetectionApp {
   }
 
   initEventListeners() {
-    // Subtle Diagnostics trigger opens configuration modal
-    if (this.btnOpenConfigSubtle) {
-      this.btnOpenConfigSubtle.addEventListener('click', (e) => {
+    // Subtle Help Popover toggle
+    if (this.btnHelp) {
+      this.btnHelp.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (this.helpPopover) {
+          this.helpPopover.classList.toggle('hidden');
+        }
+      });
+    }
+
+    if (this.btnClosePopover) {
+      this.btnClosePopover.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (this.helpPopover) this.helpPopover.classList.add('hidden');
+      });
+    }
+
+    // Embedded hyperlink inside description text opens configuration page
+    if (this.linkOpenConfig) {
+      this.linkOpenConfig.addEventListener('click', (e) => {
         e.preventDefault();
+        if (this.helpPopover) this.helpPopover.classList.add('hidden');
         this.openConfigModal();
       });
     }
+
+    // Clicking anywhere outside popover closes it
+    document.addEventListener('click', (e) => {
+      if (this.helpPopover && !this.helpPopover.contains(e.target) && e.target !== this.btnHelp) {
+        this.helpPopover.classList.add('hidden');
+      }
+    });
 
     if (this.btnCloseModal) {
       this.btnCloseModal.addEventListener('click', () => this.closeConfigModal());
@@ -361,7 +447,7 @@ class ZoneDetectionApp {
       }
     }
 
-    // Update 4 Waveform Channels instantly
+    // Update 4 Waveform Channels smoothly
     for (const [zoneId, channel] of Object.entries(this.channels)) {
       const isThisZoneActive = Number(zoneId) === sig;
       channel.setActive(isThisZoneActive);

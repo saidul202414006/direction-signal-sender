@@ -114,7 +114,14 @@
         <!-- Zone A Signal Panel -->
         <div class="signal-card" id="cardSignalA">
           <div class="signal-header">
-            <span class="signal-title">ZONE A Signal:</span>
+            <div class="signal-header-left">
+              <span class="signal-title">ZONE A Signal:</span>
+              <div class="csi-metrics">
+                <span class="metric-item"><span class="metric-key">Amp:</span><span class="metric-val" id="ampA">18.4 dB</span></span>
+                <span class="metric-item"><span class="metric-key">Var:</span><span class="metric-val" id="varA">0.05</span></span>
+                <span class="metric-item"><span class="metric-key">SNR:</span><span class="metric-val" id="snrA">14.2 dB</span></span>
+              </div>
+            </div>
             <span class="presence-indicator" id="presenceA">Below Threshold</span>
           </div>
           <div class="graph-wrapper">
@@ -128,7 +135,14 @@
         <!-- Zone B Signal Panel -->
         <div class="signal-card" id="cardSignalB">
           <div class="signal-header">
-            <span class="signal-title">ZONE B Signal:</span>
+            <div class="signal-header-left">
+              <span class="signal-title">ZONE B Signal:</span>
+              <div class="csi-metrics">
+                <span class="metric-item"><span class="metric-key">Amp:</span><span class="metric-val" id="ampB">18.6 dB</span></span>
+                <span class="metric-item"><span class="metric-key">Var:</span><span class="metric-val" id="varB">0.06</span></span>
+                <span class="metric-item"><span class="metric-key">SNR:</span><span class="metric-val" id="snrB">14.0 dB</span></span>
+              </div>
+            </div>
             <span class="presence-indicator" id="presenceB">Below Threshold</span>
           </div>
           <div class="graph-wrapper">
@@ -142,7 +156,14 @@
         <!-- Zone C Signal Panel -->
         <div class="signal-card" id="cardSignalC">
           <div class="signal-header">
-            <span class="signal-title">ZONE C Signal:</span>
+            <div class="signal-header-left">
+              <span class="signal-title">ZONE C Signal:</span>
+              <div class="csi-metrics">
+                <span class="metric-item"><span class="metric-key">Amp:</span><span class="metric-val" id="ampC">18.3 dB</span></span>
+                <span class="metric-item"><span class="metric-key">Var:</span><span class="metric-val" id="varC">0.05</span></span>
+                <span class="metric-item"><span class="metric-key">SNR:</span><span class="metric-val" id="snrC">14.4 dB</span></span>
+              </div>
+            </div>
             <span class="presence-indicator" id="presenceC">Below Threshold</span>
           </div>
           <div class="graph-wrapper">
@@ -156,7 +177,14 @@
         <!-- Zone D Signal Panel -->
         <div class="signal-card" id="cardSignalD">
           <div class="signal-header">
-            <span class="signal-title">ZONE D Signal:</span>
+            <div class="signal-header-left">
+              <span class="signal-title">ZONE D Signal:</span>
+              <div class="csi-metrics">
+                <span class="metric-item"><span class="metric-key">Amp:</span><span class="metric-val" id="ampD">18.5 dB</span></span>
+                <span class="metric-item"><span class="metric-key">Var:</span><span class="metric-val" id="varD">0.06</span></span>
+                <span class="metric-item"><span class="metric-key">SNR:</span><span class="metric-val" id="snrD">14.1 dB</span></span>
+              </div>
+            </div>
             <span class="presence-indicator" id="presenceD">Below Threshold</span>
           </div>
           <div class="graph-wrapper">
@@ -169,15 +197,26 @@
       </section>
     </main>
 
-    <!-- Footer Bar with Subtle Diagnostics Link -->
+    <!-- Footer Bar with Subtle ? Icon -->
     <footer class="app-footer">
       <div class="footer-left">
         <span class="footer-telemetry">CSI Subcarrier Matrix: 64 Tones • Resolution: 40 MHz</span>
       </div>
       <div class="footer-right">
-        <span class="footer-diag-text">Diagnostics: <span id="btnOpenConfigSubtle" class="subtle-clickable" title="Open Network & Parameter Settings">Station Parameters &amp; Config</span></span>
+        <button id="btnHelp" class="btn-help-subtle" title="Station Information">?</button>
       </div>
     </footer>
+
+    <!-- Subtle Help Popover -->
+    <div id="helpPopover" class="help-popover hidden">
+      <div class="popover-header">
+        <h4>Station Information</h4>
+        <button id="btnClosePopover" class="btn-close-popover">&times;</button>
+      </div>
+      <div class="popover-body">
+        <p>RF/CSI Monitoring Station continuously measures multi-subcarrier wireless channel state across 4 spatial zones. Real-time amplitude and variance metrics indicate multipath disturbances caused by physical presence. To bind client adapters or reconfigure reception targets, access the station <a href="#" id="linkOpenConfig" class="hyperlink">settings</a>.</p>
+      </div>
+    </div>
 
     <!-- Configuration & Diagnostics Modal -->
     <div id="configModal" class="modal-backdrop hidden">
