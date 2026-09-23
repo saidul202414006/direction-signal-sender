@@ -879,3 +879,112 @@ body {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* Real Mode Hardware Telemetry Styles */
+.section-header-inline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.badge-status {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+.badge-online {
+  background: rgba(0, 229, 163, 0.15);
+  border: 1px solid var(--accent-green);
+  color: var(--accent-green);
+  box-shadow: 0 0 8px rgba(0, 229, 163, 0.25);
+}
+
+.badge-offline {
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid #475569;
+  color: #94a3b8;
+}
+
+.real-nodes-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.real-node-card {
+  background: #0d121c;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 10px;
+  transition: all 0.2s ease;
+}
+
+.real-node-card.online {
+  border-color: rgba(0, 229, 163, 0.4);
+  background: rgba(0, 229, 163, 0.03);
+}
+
+.node-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.node-id-tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-cyan);
+}
+
+.node-zone-tag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.node-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.dot-offline {
+  background: #64748b;
+}
+
+.dot-online {
+  background: #00e5a3;
+  box-shadow: 0 0 6px #00e5a3;
+}
+
+.node-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.node-stat-row {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.stat-lbl {
+  color: var(--text-muted);
+}
+
+.stat-val {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+

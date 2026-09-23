@@ -143,6 +143,18 @@ class WaveformChannel {
     if (this.snrEl) this.snrEl.textContent = this.currentSNR.toFixed(1) + ' dB';
   }
 
+  setRealHardwareMetrics(meanAmp, variance, snr) {
+    this.targetAmp = meanAmp;
+    this.targetVar = variance;
+    this.targetSNR = snr;
+    this.currentAmp += (meanAmp - this.currentAmp) * 0.2;
+    this.currentVar += (variance - this.currentVar) * 0.2;
+    this.currentSNR += (snr - this.currentSNR) * 0.2;
+    if (this.ampEl) this.ampEl.textContent = this.currentAmp.toFixed(1) + ' dB';
+    if (this.varEl) this.varEl.textContent = this.currentVar.toFixed(2);
+    if (this.snrEl) this.snrEl.textContent = this.currentSNR.toFixed(1) + ' dB';
+  }
+
   update() {
     const val = this.nextSample();
     this.data.shift();
@@ -286,6 +298,39 @@ class ZoneDetectionApp {
     this.radioRealMode = document.getElementById('radioRealMode');
     this.labelAppMode = document.getElementById('labelAppMode');
     this.labelRealMode = document.getElementById('labelRealMode');
+
+    // Real Mode Hardware Telemetry
+    this.realUdpStatusBadge = document.getElementById('realUdpStatusBadge');
+    this.realNodes = {
+      'RX_S3_A': {
+        card: document.getElementById('cardNodeS3A'),
+        dot: document.getElementById('dotS3A'),
+        hz: document.getElementById('hzS3A'),
+        v: document.getElementById('varNodeS3A'),
+        a: document.getElementById('ampNodeS3A')
+      },
+      'RX_S3_B': {
+        card: document.getElementById('cardNodeS3B'),
+        dot: document.getElementById('dotS3B'),
+        hz: document.getElementById('hzS3B'),
+        v: document.getElementById('varNodeS3B'),
+        a: document.getElementById('ampNodeS3B')
+      },
+      'RX_AM_A': {
+        card: document.getElementById('cardNodeAMA'),
+        dot: document.getElementById('dotAMA'),
+        hz: document.getElementById('hzAMA'),
+        v: document.getElementById('varNodeAMA'),
+        a: document.getElementById('ampNodeAMA')
+      },
+      'RX_AM_B': {
+        card: document.getElementById('cardNodeAMB'),
+        dot: document.getElementById('dotAMB'),
+        hz: document.getElementById('hzAMB'),
+        v: document.getElementById('varNodeAMB'),
+        a: document.getElementById('ampNodeAMB')
+      }
+    };
   }
 
   initEventListeners() {
@@ -366,10 +411,20 @@ class ZoneDetectionApp {
         if (this.radioAppMode) this.radioAppMode.checked = true;
         if (this.labelAppMode) this.labelAppMode.classList.add('active');
         if (this.labelRealMode) this.labelRealMode.classList.remove('active');
+        if (this.headerSystemStatus) this.headerSystemStatus.textContent = 'SYSTEM NORMAL';
+        if (this.realUdpStatusBadge) {
+          this.realUdpStatusBadge.textContent = 'STOPPED';
+          this.realUdpStatusBadge.className = 'badge-status badge-offline';
+        }
       } else {
         if (this.radioRealMode) this.radioRealMode.checked = true;
         if (this.labelRealMode) this.labelRealMode.classList.add('active');
         if (this.labelAppMode) this.labelAppMode.classList.remove('active');
+        if (this.headerSystemStatus) this.headerSystemStatus.textContent = 'REAL MODE: UDP :5555 ACTIVE';
+        if (this.realUdpStatusBadge) {
+          this.realUdpStatusBadge.textContent = 'LISTENING (:5555)';
+          this.realUdpStatusBadge.className = 'badge-status badge-online';
+        }
       }
       if (window.electronAPI && window.electronAPI.setMode) {
         window.electronAPI.setMode(mode);
@@ -405,6 +460,80 @@ class ZoneDetectionApp {
       window.electronAPI.onSignalReceived((signalData) => {
         this.handleSignal(signalData);
       });
+    }
+
+    // Subscribe to Real Mode Telemetry & Node Data
+    if (window.electronAPI && window.electronAPI.onRealModeTelemetry) {
+      window.electronAPI.onRealModeTelemetry((telemetry) => {
+        this.handleRealModeTelemetry(telemetry);
+      });
+    }
+
+    if (window.electronAPI && window.electronAPI.onRealModeNodeData) {
+      window.electronAPI.onRealModeNodeData((nodeData) => {
+        this.handleRealModeNodeData(nodeData);
+      });
+    }
+  }
+
+  handleRealModeNodeData(nodeData) {
+    if (!nodeData || this.activeMode !== 'Real Mode') return;
+
+    let channelKey = null;
+    if (nodeData.zoneKey === 'A') channelKey = 1;
+    else if (nodeData.zoneKey === 'B') channelKey = 2;
+    else if (nodeData.zoneKey === 'C') channelKey = 3;
+    else if (nodeData.zoneKey === 'D') channelKey = 4;
+
+    if (channelKey && this.channels[channelKey]) {
+      this.channels[channelKey].setRealHardwareMetrics(
+        nodeData.meanAmp || 18.5,
+        nodeData.variance || 0.05,
+        nodeData.snr || 14.2
+      );
+    }
+  }
+
+  handleRealModeTelemetry(telemetry) {
+    if (!telemetry) return;
+
+    if (this.realUdpStatusBadge) {
+      if (telemetry.isRunning) {
+        this.realUdpStatusBadge.textContent = 'LISTENING (:5555)';
+        this.realUdpStatusBadge.className = 'badge-status badge-online';
+      } else {
+        this.realUdpStatusBadge.textContent = 'STOPPED';
+        this.realUdpStatusBadge.className = 'badge-status badge-offline';
+      }
+    }
+
+    if (telemetry.nodes && this.realNodes) {
+      let aliveCount = 0;
+      for (const [nodeId, meta] of Object.entries(this.realNodes)) {
+        const node = telemetry.nodes[nodeId];
+        if (!node) continue;
+
+        if (node.isAlive) aliveCount++;
+
+        if (meta.card) {
+          if (node.isAlive) meta.card.classList.add('online');
+          else meta.card.classList.remove('online');
+        }
+        if (meta.dot) {
+          meta.dot.className = 'node-status-dot ' + (node.isAlive ? 'dot-online' : 'dot-offline');
+        }
+        if (meta.hz) meta.hz.textContent = (node.packetRateHz || 0) + ' Hz';
+        if (meta.v) meta.v.textContent = (node.variance || 0).toFixed(2);
+        if (meta.a) meta.a.textContent = (node.meanAmp || 0).toFixed(1) + ' dB';
+      }
+
+      if (this.activeMode === 'Real Mode' && this.headerSystemStatus) {
+        if (aliveCount > 0) {
+          this.headerSystemStatus.textContent = `REAL MODE: ${aliveCount}/4 NODES ONLINE`;
+        } else {
+          this.headerSystemStatus.textContent = 'REAL MODE: UDP :5555 ACTIVE';
+        }
+      }
     }
   }
 
@@ -462,6 +591,22 @@ class ZoneDetectionApp {
         this.updateNetworkUI(status.networkInfo, status.port);
         if (status.lastSignal) {
           this.handleSignal(status.lastSignal);
+        }
+        if (status.mode) {
+          this.activeMode = status.mode;
+          if (this.activeMode === 'Real Mode') {
+            if (this.radioRealMode) this.radioRealMode.checked = true;
+            if (this.labelRealMode) this.labelRealMode.classList.add('active');
+            if (this.labelAppMode) this.labelAppMode.classList.remove('active');
+            if (this.headerSystemStatus) this.headerSystemStatus.textContent = 'REAL MODE: UDP :5555 ACTIVE';
+            if (this.realUdpStatusBadge) {
+              this.realUdpStatusBadge.textContent = 'LISTENING (:5555)';
+              this.realUdpStatusBadge.className = 'badge-status badge-online';
+            }
+          }
+        }
+        if (status.realMode && status.realMode.udpStatus) {
+          this.handleRealModeTelemetry(status.realMode.udpStatus);
         }
       } catch (e) {
         console.error('Failed to fetch server status:', e);

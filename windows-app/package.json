@@ -1,14 +1,14 @@
 {
   "name": "zone-detection-app",
-  "version": "1.4.2",
-  "description": "Windows Zone Detection Application with Embedded Signal Receiver and Real-time CSI Visualization",
+  "version": "2.0.0",
+  "description": "Windows Zone Detection Application with Embedded Signal Receiver, Real-time CSI Visualization, and Hardware UDP Ingestion",
   "main": "src/main.js",
   "author": "Antigravity",
   "license": "MIT",
   "scripts": {
     "start": "electron .",
-    "test": "node tests/test_server.js",
-    "build:exe": "electron-builder --win portable"
+    "test": "node tests/test_server.js && node tests/test_real_mode_udp.js",
+    "build:exe": "electron-builder --win nsis zip portable"
   },
   "devDependencies": {
     "electron": "^33.2.1",
@@ -20,16 +20,33 @@
     "directories": {
       "output": "dist"
     },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
     "win": {
       "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64"]
+        },
         {
           "target": "portable",
           "arch": ["x64"]
         }
       ]
     },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "artifactName": "ZoneDetectionApp-Setup-${version}.${ext}"
+    },
     "portable": {
-      "artifactName": "ZoneDetectionApp.exe"
+      "artifactName": "ZoneDetectionApp-Portable.${ext}"
     }
   }
 }

@@ -283,11 +283,114 @@
               <label class="mode-option" id="labelRealMode">
                 <input type="radio" name="opMode" id="radioRealMode" value="Real Mode">
                 <div class="mode-content">
-                  <span class="mode-name">Real Mode (Future CSI Ingestion)</span>
-                  <span class="mode-desc">Direct ESP32 CSI packet ingestion and raw subcarrier processing.</span>
+                  <span class="mode-name">Real Mode (Hardware UDP Stream)</span>
+                  <span class="mode-desc">Direct 4-node ESP32 CSI packet ingestion over UDP port 5555 (1 TX + 4 RX broadcast over MMA hotspot) with real-time subcarrier DSP.</span>
                 </div>
               </label>
             </div>
+          </div>
+
+          <!-- Real Mode Hardware Telemetry (UDP :5555) -->
+          <div class="form-group" id="realModeTelemetrySection">
+            <div class="section-header-inline">
+              <label class="form-label">REAL MODE HARDWARE TELEMETRY (UDP :5555):</label>
+              <span id="realUdpStatusBadge" class="badge-status badge-offline">STOPPED</span>
+            </div>
+            
+            <!-- 4 RX Node Status Grid -->
+            <div class="real-nodes-grid">
+              <div class="real-node-card" id="cardNodeS3A">
+                <div class="node-card-head">
+                  <span class="node-id-tag">RX_S3_A</span>
+                  <span class="node-zone-tag">Zone A</span>
+                  <span class="node-status-dot dot-offline" id="dotS3A"></span>
+                </div>
+                <div class="node-card-body">
+                  <div class="node-stat-row">
+                    <span class="stat-lbl">Rate:</span>
+                    <span class="stat-val" id="hzS3A">0 Hz</span>
+                  </div>
+                  <div class="node-stat-row">
+                    <span class="stat-lbl">Var:</span>
+                    <span class="stat-val" id="varNodeS3A">0.00</span>
+                  </div>
+                  <div class="node-stat-row">
+                    <span class="stat-lbl">Amp:</span>
+                    <span class="stat-val" id="ampNodeS3A">-- dB</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="real-node-card" id="cardNodeS3B">
+                <div class="node-card-head">
+                  <span class="node-id-tag">RX_S3_B</span>
+                  <span class="node-zone-tag">Zone B</span>
+                  <span class="node-status-dot dot-offline" id="dotS3B"></span>
+                </div>
+                <div class="node-card-body">
+                  <div class="node-stat-row">
+                    <span class="stat-lbl">Rate:</span>
+                    <span class="stat-val" id="hzS3B">0 Hz</span>
+                  </div>
+                  <div class="node-stat-row">
+                    <span class="stat-lbl">Var:</span>
+                    <span class="stat-val" id="varNodeS3B">0.00</span>
+                  </div>
+                  <div class="node-stat-row">
+                    <span class="stat-lbl">Amp:</span>
+                    <span class="stat-val" id="ampNodeS3B">-- dB</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="real-node-card" id="cardNodeAMA">
+                <div class="node-card-head">
+                  <span class="node-id-tag">RX_AM_A</span>
+                  <span class="node-zone-tag">Zone C</span>
+                  <span class="node-status-dot dot-offline" id="dotAMA"></span>
+                </div>
+                <div class="node-card-body">
+                  <div class="node-stat-row">
+                    <span class="stat-lbl">Rate:</span>
+                    <span class="stat-val" id="hzAMA">0 Hz</span>
+                  </div>
+                  <div class="node-stat-row">
+                    <span class="stat-lbl">Var:</span>
+                    <span class="stat-val" id="varNodeAMA">0.00</span>
+                  </div>
+                  <div class="node-stat-row">
+                    <span class="stat-lbl">Amp:</span>
+                    <span class="stat-val" id="ampNodeAMA">-- dB</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="real-node-card" id="cardNodeAMB">
+                <div class="node-card-head">
+                  <span class="node-id-tag">RX_AM_B</span>
+                  <span class="node-zone-tag">Zone D</span>
+                  <span class="node-status-dot dot-offline" id="dotAMB"></span>
+                </div>
+                <div class="node-card-body">
+                  <div class="node-stat-row">
+                    <span class="stat-lbl">Rate:</span>
+                    <span class="stat-val" id="hzAMB">0 Hz</span>
+                  </div>
+                  <div class="node-stat-row">
+                    <span class="stat-lbl">Var:</span>
+                    <span class="stat-val" id="varNodeAMB">0.00</span>
+                  </div>
+                  <div class="node-stat-row">
+                    <span class="stat-lbl">Amp:</span>
+                    <span class="stat-val" id="ampNodeAMB">-- dB</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <p class="field-hint" style="margin-top: 6px;">
+              Nodes broadcast UDP directly to port 5555 over Wi-Fi Hotspot: <strong>SSID: MMA</strong> (Pass: <code>mma151688</code>, Ch: 6).
+            </p>
           </div>
 
           <!-- Manual Signal Simulation -->

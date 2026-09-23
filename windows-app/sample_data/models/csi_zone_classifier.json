@@ -1,0 +1,341 @@
+{
+  "model_type": "RandomForest_ExplainableDecisionTree",
+  "timestamp": 1790180957,
+  "feature_count": 16,
+  "features": [
+    "Spatial_Mean_Amp",
+    "Spatial_Amp_Std",
+    "Spatial_PeakToPeak",
+    "Mean_Temporal_Var",
+    "Max_Temporal_Var",
+    "Var_Skewness",
+    "Cosine_Wander",
+    "Wander_Velocity",
+    "HF_Temporal_Delta",
+    "Subcarrier_Dynamic_Corr",
+    "Energy_Entropy",
+    "Mean_RSSI",
+    "RSSI_Std",
+    "RSSI_Delta",
+    "SNR_Estimate",
+    "Subcarrier_Spectral_Slope"
+  ],
+  "classes": [
+    "static",
+    "crossing",
+    "beside"
+  ],
+  "tree": {
+    "type": "split",
+    "feature": "Var_Skewness",
+    "feature_index": 5,
+    "threshold": 0.9918342232704163,
+    "left": {
+      "type": "split",
+      "feature": "SNR_Estimate",
+      "feature_index": 14,
+      "threshold": 118.30075073242188,
+      "left": {
+        "type": "leaf",
+        "prediction": 2,
+        "confidence": 1.0
+      },
+      "right": {
+        "type": "split",
+        "feature": "Subcarrier_Dynamic_Corr",
+        "feature_index": 9,
+        "threshold": 0.2803453654050827,
+        "left": {
+          "type": "split",
+          "feature": "RSSI_Delta",
+          "feature_index": 13,
+          "threshold": 3.5,
+          "left": {
+            "type": "split",
+            "feature": "Mean_Temporal_Var",
+            "feature_index": 3,
+            "threshold": 2.6966021060943604,
+            "left": {
+              "type": "leaf",
+              "prediction": 2,
+              "confidence": 1.0
+            },
+            "right": {
+              "type": "split",
+              "feature": "Energy_Entropy",
+              "feature_index": 10,
+              "threshold": 0.8623210191726685,
+              "left": {
+                "type": "leaf",
+                "prediction": 2,
+                "confidence": 1.0
+              },
+              "right": {
+                "type": "split",
+                "feature": "Var_Skewness",
+                "feature_index": 5,
+                "threshold": 0.5895646512508392,
+                "left": {
+                  "type": "split",
+                  "feature": "Max_Temporal_Var",
+                  "feature_index": 4,
+                  "threshold": 92.58521270751953,
+                  "left": {
+                    "type": "leaf",
+                    "prediction": 2,
+                    "confidence": 1.0
+                  },
+                  "right": {
+                    "type": "leaf",
+                    "prediction": 0,
+                    "confidence": 1.0
+                  }
+                },
+                "right": {
+                  "type": "leaf",
+                  "prediction": 0,
+                  "confidence": 1.0
+                }
+              }
+            }
+          },
+          "right": {
+            "type": "split",
+            "feature": "Spatial_Amp_Std",
+            "feature_index": 1,
+            "threshold": 5.066657543182373,
+            "left": {
+              "type": "split",
+              "feature": "SNR_Estimate",
+              "feature_index": 14,
+              "threshold": 120.55136108398438,
+              "left": {
+                "type": "leaf",
+                "prediction": 2,
+                "confidence": 1.0
+              },
+              "right": {
+                "type": "split",
+                "feature": "HF_Temporal_Delta",
+                "feature_index": 8,
+                "threshold": 4.139050483703613,
+                "left": {
+                  "type": "split",
+                  "feature": "HF_Temporal_Delta",
+                  "feature_index": 8,
+                  "threshold": 3.700339913368225,
+                  "left": {
+                    "type": "leaf",
+                    "prediction": 2,
+                    "confidence": 1.0
+                  },
+                  "right": {
+                    "type": "leaf",
+                    "prediction": 0,
+                    "confidence": 1.0
+                  }
+                },
+                "right": {
+                  "type": "leaf",
+                  "prediction": 1,
+                  "confidence": 1.0
+                }
+              }
+            },
+            "right": {
+              "type": "leaf",
+              "prediction": 0,
+              "confidence": 1.0
+            }
+          }
+        },
+        "right": {
+          "type": "leaf",
+          "prediction": 2,
+          "confidence": 1.0
+        }
+      }
+    },
+    "right": {
+      "type": "split",
+      "feature": "Energy_Entropy",
+      "feature_index": 10,
+      "threshold": 0.8695617914199829,
+      "left": {
+        "type": "split",
+        "feature": "RSSI_Delta",
+        "feature_index": 13,
+        "threshold": 6.5,
+        "left": {
+          "type": "split",
+          "feature": "HF_Temporal_Delta",
+          "feature_index": 8,
+          "threshold": 1.6469739079475403,
+          "left": {
+            "type": "split",
+            "feature": "HF_Temporal_Delta",
+            "feature_index": 8,
+            "threshold": 1.625901222229004,
+            "left": {
+              "type": "leaf",
+              "prediction": 2,
+              "confidence": 1.0
+            },
+            "right": {
+              "type": "leaf",
+              "prediction": 1,
+              "confidence": 1.0
+            }
+          },
+          "right": {
+            "type": "leaf",
+            "prediction": 2,
+            "confidence": 1.0
+          }
+        },
+        "right": {
+          "type": "leaf",
+          "prediction": 1,
+          "confidence": 1.0
+        }
+      },
+      "right": {
+        "type": "split",
+        "feature": "Energy_Entropy",
+        "feature_index": 10,
+        "threshold": 0.871253490447998,
+        "left": {
+          "type": "split",
+          "feature": "Mean_RSSI",
+          "feature_index": 11,
+          "threshold": -37.35000038146973,
+          "left": {
+            "type": "split",
+            "feature": "Wander_Velocity",
+            "feature_index": 7,
+            "threshold": 0.0010612308979034424,
+            "left": {
+              "type": "leaf",
+              "prediction": 0,
+              "confidence": 1.0
+            },
+            "right": {
+              "type": "leaf",
+              "prediction": 1,
+              "confidence": 1.0
+            }
+          },
+          "right": {
+            "type": "split",
+            "feature": "Mean_RSSI",
+            "feature_index": 11,
+            "threshold": -30.949999809265137,
+            "left": {
+              "type": "split",
+              "feature": "Spatial_Amp_Std",
+              "feature_index": 1,
+              "threshold": 0.4979080855846405,
+              "left": {
+                "type": "split",
+                "feature": "HF_Temporal_Delta",
+                "feature_index": 8,
+                "threshold": 1.349998116493225,
+                "left": {
+                  "type": "split",
+                  "feature": "Spatial_Amp_Std",
+                  "feature_index": 1,
+                  "threshold": 0.40263284742832184,
+                  "left": {
+                    "type": "leaf",
+                    "prediction": 1,
+                    "confidence": 1.0
+                  },
+                  "right": {
+                    "type": "leaf",
+                    "prediction": 2,
+                    "confidence": 1.0
+                  }
+                },
+                "right": {
+                  "type": "leaf",
+                  "prediction": 1,
+                  "confidence": 1.0
+                }
+              },
+              "right": {
+                "type": "split",
+                "feature": "Spatial_Amp_Std",
+                "feature_index": 1,
+                "threshold": 0.5210511684417725,
+                "left": {
+                  "type": "leaf",
+                  "prediction": 2,
+                  "confidence": 1.0
+                },
+                "right": {
+                  "type": "split",
+                  "feature": "Subcarrier_Dynamic_Corr",
+                  "feature_index": 9,
+                  "threshold": 0.1396586149930954,
+                  "left": {
+                    "type": "leaf",
+                    "prediction": 0,
+                    "confidence": 1.0
+                  },
+                  "right": {
+                    "type": "leaf",
+                    "prediction": 1,
+                    "confidence": 1.0
+                  }
+                }
+              }
+            },
+            "right": {
+              "type": "leaf",
+              "prediction": 2,
+              "confidence": 1.0
+            }
+          }
+        },
+        "right": {
+          "type": "split",
+          "feature": "Spatial_Mean_Amp",
+          "feature_index": 0,
+          "threshold": 27.323877334594727,
+          "left": {
+            "type": "leaf",
+            "prediction": 1,
+            "confidence": 1.0
+          },
+          "right": {
+            "type": "split",
+            "feature": "RSSI_Std",
+            "feature_index": 12,
+            "threshold": 1.0713050067424774,
+            "left": {
+              "type": "leaf",
+              "prediction": 0,
+              "confidence": 1.0
+            },
+            "right": {
+              "type": "split",
+              "feature": "Mean_Temporal_Var",
+              "feature_index": 3,
+              "threshold": 7.061901569366455,
+              "left": {
+                "type": "leaf",
+                "prediction": 1,
+                "confidence": 1.0
+              },
+              "right": {
+                "type": "leaf",
+                "prediction": 0,
+                "confidence": 1.0
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

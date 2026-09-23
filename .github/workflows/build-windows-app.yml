@@ -43,8 +43,10 @@ jobs:
       - name: Upload Windows Executable Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: zone-detection-windows-app-exe
-          path: windows-app/dist/*.exe
+          name: zone-detection-windows-app-packages
+          path: |
+            windows-app/dist/*.exe
+            windows-app/dist/*.zip
           retention-days: 14
           if-no-files-found: error
 
@@ -52,6 +54,8 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: windows-app/dist/*.exe
+          files: |
+            windows-app/dist/*.exe
+            windows-app/dist/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

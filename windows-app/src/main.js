@@ -1,9 +1,11 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const SignalServer = require('./server');
+const RealModeController = require('./real_mode/real_mode_controller');
 
 let mainWindow = null;
 const signalServer = new SignalServer();
+const realModeController = new RealModeController();
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -33,8 +35,11 @@ app.whenReady().then(async () => {
 
   try {
     const info = await signalServer.start(5000, (signalData) => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('signal-received', signalData);
+      // Application Mode guard: Only dispatch to UI if Application Mode is active
+      if (signalServer.activeMode === 'Application Mode') {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('signal-received', signalData);
+        }
       }
     });
     console.log('[Main] Signal server running at:', info.networkInfo.endpointUrl);
@@ -60,12 +65,38 @@ ipcMain.handle('get-server-status', () => {
     port: signalServer.actualPort,
     mode: signalServer.activeMode,
     networkInfo: signalServer.getNetworkInterfaces(),
-    lastSignal: signalServer.lastSignal
+    lastSignal: signalServer.lastSignal,
+    realMode: realModeController.getStatus()
   };
 });
 
-ipcMain.handle('set-mode', (event, mode) => {
+ipcMain.handle('set-mode', async (event, mode) => {
   signalServer.setMode(mode);
+
+  if (mode === 'Real Mode') {
+    console.log('[Main] Enabling Real Mode (Hardware UDP Stream)...');
+    await realModeController.activate({
+      onSignal: (signalData) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('signal-received', signalData);
+        }
+      },
+      onTelemetry: (telemetry) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('real-mode-telemetry', telemetry);
+        }
+      },
+      onNodeData: (nodeData) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('real-mode-node-data', nodeData);
+        }
+      }
+    });
+  } else {
+    console.log('[Main] Enabling Application Mode (Mobile HTTP Stream)...');
+    await realModeController.deactivate();
+  }
+
   return { success: true, mode };
 });
 
@@ -92,6 +123,7 @@ ipcMain.handle('simulate-signal', (event, signal) => {
 });
 
 app.on('window-all-closed', async () => {
+  await realModeController.deactivate();
   await signalServer.stop();
   if (process.platform !== 'darwin') {
     app.quit();
