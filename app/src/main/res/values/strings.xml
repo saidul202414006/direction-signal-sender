@@ -1,0 +1,19 @@
+<resources>
+    <string name="app_name">Direction Signal Sender</string>
+    <string name="endpoint_configuration">Endpoint Configuration</string>
+    <string name="endpoint_url_hint">https://example.com/api/direction</string>
+    <string name="save_url">Save URL</string>
+    <string name="url_saved">URL successfully updated</string>
+    <string name="invalid_url">Invalid URL (must begin with http:// or https://)</string>
+    <string name="background_service">Background Service</string>
+    <string name="service_running">Continuous sensor monitoring ACTIVE</string>
+    <string name="service_stopped">Sensor monitoring STOPPED</string>
+    <string name="current_direction">CURRENT DIRECTION</string>
+    <string name="current_heading">Heading: --°</string>
+    <string name="motion_status">STATUS: CALIBRATING</string>
+    <string name="last_signal_sent">Last Signal Sent: None</string>
+    <string name="transmission_status">Transmission: Idle</string>
+    <string name="permissions_title">System Permissions</string>
+    <string name="fix_battery_optimization">Disable Battery Restriction</string>
+    <string name="grant_notification">Grant Notification Permission</string>
+</resources>
