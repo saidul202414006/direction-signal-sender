@@ -43,3 +43,15 @@ All test runs, benchmarks, algorithmic adjustments, and bug fixes must be record
   - Uploaded artifact `direction-signal-sender-apk` (5.4 MB compressed).
   - Artifact downloaded and verified at [`build-output/app-debug.apk`](file:///d:/bin/projects/MMA%205%20m/build-output/app-debug.apk).
 - **Physical Verification**: Ready for physical phone validation per the step-by-step Bangla testing runbook.
+
+---
+
+### [2026-09-23] EXP-005: GitHub Release v1.0.0 & APK Distribution
+- **Objective**: Create GitHub Release `v1.0.0` and attach production-ready APK binary asset.
+- **Release Page**: `https://github.com/saidul202414006/direction-signal-sender/releases/tag/v1.0.0`
+- **Asset Names**:
+  - `DirectionSignalSender-v1.0.0.apk` (6.4 MB)
+  - `DirectionSignalSender.apk` (6.4 MB)
+- **Direct Download URL**: `https://github.com/saidul202414006/direction-signal-sender/releases/download/v1.0.0/DirectionSignalSender-v1.0.0.apk`
+- **CI/CD Workflow Update**: Configured automated asset deployment to GitHub Releases for all future tag pushes via `softprops/action-gh-release@v2`.
+- **Result**: PASSED. GitHub Release published with live APK download link.
