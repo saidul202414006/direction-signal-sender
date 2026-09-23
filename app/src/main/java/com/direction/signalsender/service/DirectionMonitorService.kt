@@ -130,6 +130,7 @@ class DirectionMonitorService : Service() {
         preferenceManager.lastConfirmedDirection = direction
 
         _serviceState.value = _serviceState.value.copy(
+            lastConfirmedDirection = direction,
             lastSignalSent = signal,
             lastTransmission = TransmissionResult.InFlight(signal)
         )

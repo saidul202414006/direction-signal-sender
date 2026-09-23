@@ -38,6 +38,7 @@ enum class MotionStatus(val displayName: String) {
 data class DirectionState(
     val azimuthDeg: Float = 0f,
     val direction: CardinalDirection = CardinalDirection.NORTH,
+    val lastConfirmedDirection: CardinalDirection? = null,
     val motionStatus: MotionStatus = MotionStatus.UNKNOWN,
     val lastSignalSent: Int? = null,
     val lastTransmission: TransmissionResult? = null,
