@@ -18,7 +18,6 @@ class StabilityDetector(
     private val circularFilter = CircularMovingAverage(windowSize = 8)
 
     private var currentMotionStatus: MotionStatus = MotionStatus.UNKNOWN
-    private var stablePeriodStartTimeMs: Long? = null
     private var lastStableDirectionReported: CardinalDirection? = null
 
     data class DetectionResult(
@@ -63,27 +62,20 @@ class StabilityDetector(
 
         // Check if all samples fall into the exact same cardinal sector
         val allSameSector = samplesList.all { SectorClassifier.classify(it.azimuthDeg) == currentSector }
+        val timeSpanMs = sampleBuffer.last().timestampMs - sampleBuffer.first().timestampMs
 
         var newlyConfirmedDirection: CardinalDirection? = null
 
         if (maxExcursion > maxAngularExcursionForStableDeg || !allSameSector) {
-            // Movement detected
+            // Active movement or crossing sectors
             currentMotionStatus = MotionStatus.MOVING
-            stablePeriodStartTimeMs = null
             lastStableDirectionReported = null
-        } else {
-            // Low excursion and consistent sector: potential stability
-            if (stablePeriodStartTimeMs == null) {
-                stablePeriodStartTimeMs = timestampMs
-            }
-
-            val stableDuration = timestampMs - (stablePeriodStartTimeMs ?: timestampMs)
-            if (stableDuration >= minStableDurationMs) {
-                currentMotionStatus = MotionStatus.STABLE
-                if (lastStableDirectionReported != currentSector) {
-                    newlyConfirmedDirection = currentSector
-                    lastStableDirectionReported = currentSector
-                }
+        } else if (timeSpanMs >= minStableDurationMs) {
+            // Maintained low excursion within the same sector for >= minStableDurationMs
+            currentMotionStatus = MotionStatus.STABLE
+            if (lastStableDirectionReported != currentSector) {
+                newlyConfirmedDirection = currentSector
+                lastStableDirectionReported = currentSector
             }
         }
 
@@ -100,7 +92,6 @@ class StabilityDetector(
         sampleBuffer.clear()
         circularFilter.clear()
         currentMotionStatus = MotionStatus.UNKNOWN
-        stablePeriodStartTimeMs = null
         lastStableDirectionReported = null
     }
 }
