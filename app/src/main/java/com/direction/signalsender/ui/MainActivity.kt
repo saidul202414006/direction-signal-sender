@@ -25,6 +25,7 @@ import com.direction.signalsender.databinding.ActivityMainBinding
 import com.direction.signalsender.domain.model.CardinalDirection
 import com.direction.signalsender.domain.model.MotionStatus
 import com.direction.signalsender.domain.model.TransmissionResult
+import com.direction.signalsender.server.LocalTestServer
 import com.direction.signalsender.service.DirectionMonitorService
 import kotlinx.coroutines.launch
 
@@ -50,6 +51,7 @@ class MainActivity : AppCompatActivity() {
         preferenceManager = PreferenceManager(this)
 
         setupEndpointConfig()
+        setupTestEndpointUI()
         setupServiceToggle()
         setupSignalZeroToggle()
         setupPermissionActions()
@@ -59,6 +61,41 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         checkAndDisplayPermissionStatus()
+        updateTestEndpointUrls()
+    }
+
+    private fun setupTestEndpointUI() {
+        LocalTestServer.start()
+        updateTestEndpointUrls()
+
+        binding.btnSetTestEndpoint.setOnClickListener {
+            val port = LocalTestServer.actualPort
+            val localEndpoint = "http://127.0.0.1:$port/api/signal"
+            binding.etEndpointUrl.setText(localEndpoint)
+            preferenceManager.endpointUrl = localEndpoint
+            binding.tilEndpoint.error = null
+            Toast.makeText(this, "Test endpoint set & saved!", Toast.LENGTH_SHORT).show()
+        }
+
+        binding.btnOpenTestDashboard.setOnClickListener {
+            val port = LocalTestServer.actualPort
+            val dashboardUrl = "http://127.0.0.1:$port/"
+            try {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(dashboardUrl))
+                startActivity(intent)
+            } catch (e: Exception) {
+                Toast.makeText(this, "Unable to open browser: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun updateTestEndpointUrls() {
+        val port = LocalTestServer.actualPort
+        val localEndpoint = "http://127.0.0.1:$port/api/signal"
+        val lanIp = LocalTestServer.getLocalIpAddress(this)
+
+        binding.tvTestEndpointUrl.text = localEndpoint
+        binding.tvLanTestUrl.text = "Wi-Fi PC URL: http://$lanIp:$port/"
     }
 
     /**

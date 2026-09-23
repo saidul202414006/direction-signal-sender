@@ -88,6 +88,9 @@ class DirectionMonitorService : Service() {
             // Ignore receiver registration failures on restricted vendor ROMs
         }
 
+        // Start embedded test endpoint server
+        com.direction.signalsender.server.LocalTestServer.start()
+
         stabilityDetector = StabilityDetector()
         signalDispatcher = SignalDispatcher { signalToSend ->
             onTriggerSignalTransmission(signalToSend)

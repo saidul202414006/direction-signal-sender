@@ -3,11 +3,17 @@
   "project": {
     "name": "DirectionSignalSender",
     "package_name": "com.direction.signalsender",
-    "version_name": "1.1.0",
-    "version_code": 2,
+    "version_name": "1.2.0",
+    "version_code": 3,
     "min_sdk": 24,
     "target_sdk": 34,
     "compile_sdk": 34
+  },
+  "test_server": {
+    "default_port": 8080,
+    "path": "/api/signal",
+    "local_url": "http://127.0.0.1:8080/api/signal",
+    "description": "Embedded lightweight test server with live web dashboard for real-time JSON signal verification"
   },
   "signal_zero": {
     "signal": 0,

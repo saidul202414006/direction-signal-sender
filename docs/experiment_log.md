@@ -71,3 +71,16 @@ All test runs, benchmarks, algorithmic adjustments, and bug fixes must be record
   - **Zero Regression**: Direction-based logic (`StabilityDetector`, `SectorClassifier`, `AzimuthCalculator`) remains 100% unchanged.
   - **Unit Testing**: Added `SignalZeroModeTest` verifying toggling, suppression, and resumption.
   - **Version Bump**: `v1.1.0` (versionCode: 2).
+
+---
+
+### [2026-09-23] EXP-007: Built-in Testing Endpoint & Live Web Dashboard (v1.2.0 Release)
+- **Objective**: Embed a lightweight, native test server (`LocalTestServer`) inside the APK to provide an immediate testing endpoint and live browser dashboard for JSON verification.
+- **Specification Compliance**:
+  - **Zero Regression**: Existing endpoint URL input, edit, and save logic remains 100% intact.
+  - **External Endpoints**: Users can still configure any external link and send signals to it normally.
+  - **Built-in Endpoint**: App exposes `http://127.0.0.1:8080/api/signal` (and LAN IP `http://<ip>:8080/`) directly on the UI with 1-click "Use Test URL" button.
+  - **Live Web Page**: Opening the URL in any browser displays a real-time dark-mode dashboard showing the exact incoming JSON payload (`{"signal": <int>}`), direction badge, timestamps, and history log.
+  - **Real-Time Polling**: Dashboard auto-updates every 350ms for instant feedback.
+  - **Unit Testing**: Added `LocalTestServerTest` verifying POST handling, JSON parsing, 200 OK responses, and `/api/latest` queries.
+  - **Version Bump**: `v1.2.0` (versionCode: 3).
