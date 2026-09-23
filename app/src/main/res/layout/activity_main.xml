@@ -347,6 +347,8 @@
                     android:fontFamily="monospace"
                     android:textSize="13sp" />
             </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
         <!-- Built-in Testing Endpoint Card -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/cardTestEndpoint"
