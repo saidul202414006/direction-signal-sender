@@ -30,7 +30,7 @@ jobs:
 
       - name: Run Unit & Signal Tests
         working-directory: windows-app
-        run: node tests/test_server.js
+        run: npm test
 
       - name: Install Windows App Dependencies
         working-directory: windows-app

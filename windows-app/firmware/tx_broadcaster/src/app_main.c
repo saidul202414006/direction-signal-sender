@@ -37,7 +37,7 @@
 
 /* ─── Configuration (set via platformio.ini build_flags) ─────────────────── */
 #ifndef CONFIG_WIFI_CHANNEL
-#define CONFIG_WIFI_CHANNEL         6
+#define CONFIG_WIFI_CHANNEL         2
 #endif
 
 #ifndef CONFIG_SEND_FREQUENCY
@@ -61,25 +61,60 @@ static const char *TAG = "csi_send";
 
 /* ─── LED Configuration ───────────────────────────────────────────────────── */
 /*
- * TX LED blinks with a DIFFERENT pattern from RX so you can tell them apart:
- * - TX: 5 startup blinks, then 1Hz heartbeat (toggle every 50 packets)
- * - RX: 3 startup blinks, then ~5Hz activity blink (toggle every 10 CSI packets)
+ * Multi-pin LED candidate array covers all ESP32 DevKit V1 variants & clones:
+ * - GPIO 2: Standard DOIT DevKit V1 blue onboard LED
+ * - GPIO 4, 5, 16: Common clone onboard LEDs
+ * - GPIO 18, 19, 21, 22, 23: Header pins for external LED / alternate clones
  */
-#define LED_GPIO                    GPIO_NUM_2
+static const gpio_num_t CANDIDATE_LEDS[] = {
+    GPIO_NUM_2,
+    GPIO_NUM_4,
+    GPIO_NUM_5,
+    GPIO_NUM_16,
+    GPIO_NUM_18,
+    GPIO_NUM_19,
+    GPIO_NUM_21,
+    GPIO_NUM_22,
+    GPIO_NUM_23
+};
+#define NUM_LEDS (sizeof(CANDIDATE_LEDS) / sizeof(CANDIDATE_LEDS[0]))
 
 static void led_init(void)
 {
-    gpio_reset_pin(LED_GPIO);
-    gpio_set_direction(LED_GPIO, GPIO_MODE_OUTPUT);
-    gpio_set_level(LED_GPIO, 0);
+    gpio_config_t io_conf = {
+        .mode = GPIO_MODE_OUTPUT,
+        .intr_type = GPIO_INTR_DISABLE,
+        .pin_bit_mask = 0,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+    };
+    for (size_t i = 0; i < NUM_LEDS; i++) {
+        io_conf.pin_bit_mask |= (1ULL << CANDIDATE_LEDS[i]);
+    }
+    gpio_config(&io_conf);
+    for (size_t i = 0; i < NUM_LEDS; i++) {
+        gpio_set_level(CANDIDATE_LEDS[i], 0);
+    }
 }
 
-/* TX startup: 5 fast blinks (vs RX's 3) — tells you which board is TX */
-static void led_startup_blink(void)
+/* Dedicated LED blink task pinned to Core 1: continuous 2Hz square wave */
+static void led_blink_task(void *pvParameter)
 {
-    for (int i = 0; i < 5; i++) {
-        gpio_set_level(LED_GPIO, 1); vTaskDelay(pdMS_TO_TICKS(80));
-        gpio_set_level(LED_GPIO, 0); vTaskDelay(pdMS_TO_TICKS(80));
+    /* 5 rapid startup flashes */
+    for (int j = 0; j < 5; j++) {
+        for (size_t i = 0; i < NUM_LEDS; i++) gpio_set_level(CANDIDATE_LEDS[i], 1);
+        vTaskDelay(pdMS_TO_TICKS(80));
+        for (size_t i = 0; i < NUM_LEDS; i++) gpio_set_level(CANDIDATE_LEDS[i], 0);
+        vTaskDelay(pdMS_TO_TICKS(80));
+    }
+
+    bool state = false;
+    while (true) {
+        state = !state;
+        for (size_t i = 0; i < NUM_LEDS; i++) {
+            gpio_set_level(CANDIDATE_LEDS[i], state ? 1 : 0);
+        }
+        vTaskDelay(pdMS_TO_TICKS(250)); /* 2Hz steady blink: 250ms ON, 250ms OFF */
     }
 }
 
@@ -172,14 +207,9 @@ static void csi_send_task(void *pvParameter)
         seq_num++;
         sent++;
 
-        /* LED: toggle every 50 packets (~1Hz heartbeat at 100pkt/s) */
-        if (sent % 50 == 0) {
-            gpio_set_level(LED_GPIO, (sent / 50) % 2);
-        }
-
         /* Log rate every 1000 packets */
         if (sent % 1000 == 0) {
-            ESP_LOGI(TAG, "TX: sent %lu packets (seq=%lu) @ target %dHz | LED blinks 1Hz",
+            ESP_LOGI(TAG, "TX: sent %lu packets (seq=%lu) @ target %dHz | LED active",
                      sent, seq_num, CONFIG_SEND_FREQUENCY);
         }
 
@@ -198,9 +228,17 @@ void app_main(void)
     }
     ESP_ERROR_CHECK(ret);
 
-    /* LED init — 5 rapid blinks (TX pattern, distinct from RX's 3 blinks) */
+    /* LED init and dedicated blink task on Core 1 */
     led_init();
-    led_startup_blink();
+    xTaskCreatePinnedToCore(
+        led_blink_task,
+        "led_blink_task",
+        2048,
+        NULL,
+        1,
+        NULL,
+        1       /* Core 1 */
+    );
 
     wifi_init();
     espnow_init();
@@ -218,7 +256,7 @@ void app_main(void)
 
     ESP_LOGI(TAG, "========================================");
     ESP_LOGI(TAG, "TX Broadcaster: %s | CH %d | HT20 MCS0 | %dHz", CONFIG_NODE_ID, CONFIG_WIFI_CHANNEL, CONFIG_SEND_FREQUENCY);
-    ESP_LOGI(TAG, "LED GPIO %d: 5-blink startup, then 1Hz heartbeat", LED_GPIO);
+    ESP_LOGI(TAG, "Continuous 2Hz Blink active on candidate pins (GPIO 2, 4, 5, 16, 22)");
     ESP_LOGI(TAG, "TX MAC: %02x:%02x:%02x:%02x:%02x:%02x",
              CONFIG_CSI_SEND_MAC[0], CONFIG_CSI_SEND_MAC[1], CONFIG_CSI_SEND_MAC[2],
              CONFIG_CSI_SEND_MAC[3], CONFIG_CSI_SEND_MAC[4], CONFIG_CSI_SEND_MAC[5]);

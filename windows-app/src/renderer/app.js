@@ -23,7 +23,7 @@ class WaveformChannel {
 
     // Multi-harmonic inharmonic frequency seeds (irrational numbers guarantee non-repeating pattern)
     this.t = Math.random() * 500;
-    this.speed = 0.048;
+    this.speed = 0.026; // Slower, more natural RF cadence
     this.macroPhase = Math.random() * 100;
     this.variancePhase = Math.random() * 100;
 
@@ -68,51 +68,42 @@ class WaveformChannel {
     }
   }
 
-  // Generates authentic, non-repeating RF / CSI fluctuations with continuous natural transition
+  // Generates authentic, non-repeating RF / CSI fluctuations with natural hill/mountain transitions
   nextSample() {
     this.t += this.speed;
-    this.macroPhase += 0.007;
-    this.variancePhase += 0.011;
+    this.macroPhase += 0.005;
+    this.variancePhase += 0.008;
 
-    // Continuous baseline relaxation (Exponential Smoothing Filter)
-    // Attack rate is smooth and continuous without any vertical frame jump
-    const rate = this.isActive ? 0.065 : 0.045;
+    // Smooth continuous baseline transition (creates a natural hill/mountain slope on transitions)
+    const rate = this.isActive ? 0.042 : 0.032;
     this.currentBase += (this.targetBase - this.currentBase) * rate;
 
-    // Long-period Macro Wandering (Breathing Motion: prevents active line from locking to a fixed horizontal level)
-    // Cycles smoothly over several seconds (drifts naturally between 0.76 and 0.89 when active)
-    const macroWander = (Math.sin(this.macroPhase * 0.81) * 0.045 + Math.cos(this.macroPhase * 1.47) * 0.035);
+    // Organic macro wandering (simulates gentle room multipath drift)
+    const macroWander = (Math.sin(this.macroPhase * 0.73) * 0.032 + Math.cos(this.macroPhase * 1.31) * 0.024);
 
-    // Evolving variance modulation (burstiness varies naturally like multipath Doppler in physical space)
-    const varMod = 0.75 + 0.35 * Math.sin(this.variancePhase * 0.93 + Math.cos(this.macroPhase));
+    // Multi-harmonic RF synthesis (smooth curves, no sharp flat edges)
+    const w1 = Math.sin(this.t * this.seed1 * 0.42);
+    const w2 = Math.cos(this.t * this.seed2 * 0.95);
+    const w3 = Math.sin(this.t * this.seed3 * 1.83);
+    const w4 = Math.sin(this.t * this.seed4 * 3.41);
 
-    // Multi-frequency inharmonic synthesis prevents visible repetition
-    const w1 = Math.sin(this.t * this.seed1 * 0.38);
-    const w2 = Math.cos(this.t * this.seed2 * 0.89);
-    const w3 = Math.sin(this.t * this.seed3 * 1.94);
-    const w4 = Math.sin(this.t * this.seed4 * 4.12);
-
-    // High-frequency Gaussian-distributed RF micro-jitter
-    const rfJitter = ((Math.random() + Math.random() + Math.random()) - 1.5) * 0.045;
-
-    // Occasional subcarrier multipath micro-spike
-    const multipathSpike = Math.random() > 0.94 ? (Math.random() - 0.5) * 0.07 : 0;
+    // Gentle Gaussian-like RF micro-variation
+    const rfJitter = ((Math.random() + Math.random()) - 1.0) * 0.022;
 
     if (this.isActive) {
-      // ACTIVE ZONE: Fluctuates vigorously strictly ABOVE the 0.72 Threshold
-      // Base level drifts between 0.78 and 0.88 via macroWander
-      const effectiveBase = this.currentBase + macroWander;
-      const variation = (w1 * 0.035 + w2 * 0.04 + w3 * 0.03 + w4 * 0.02 + rfJitter * 1.3 + multipathSpike) * varMod;
-      const val = effectiveBase + variation;
-      // Guarantee it stays strictly above the 0.72 threshold line
-      return Math.min(0.97, Math.max(0.735, val));
+      // ACTIVE ZONE: Natural hill cresting above 0.72 threshold with curved peaks & valleys
+      const variation = (w1 * 0.034 + w2 * 0.028 + w3 * 0.020 + w4 * 0.012 + rfJitter);
+      let val = this.currentBase + macroWander + variation;
+      // Soft-knee bottom protection if fully active so it never looks flat-clipped
+      if (this.currentBase > 0.75 && val < 0.732) {
+        val = 0.732 + (val - 0.732) * 0.2;
+      }
+      return Math.min(0.96, Math.max(0.15, val));
     } else {
-      // INACTIVE ZONE: Natural ambient wireless noise strictly BELOW the 0.72 Threshold
-      const effectiveBase = this.currentBase + macroWander * 0.3;
-      const variation = (w1 * 0.025 + w2 * 0.03 + w3 * 0.02 + rfJitter * 0.9 + multipathSpike * 0.3) * varMod;
-      const val = effectiveBase + variation;
-      // Guarantee it stays comfortably below the 0.72 threshold line
-      return Math.min(0.46, Math.max(0.12, val));
+      // INACTIVE ZONE: Natural ambient baseline noise comfortably below 0.72 threshold
+      const variation = (w1 * 0.022 + w2 * 0.018 + w3 * 0.012 + rfJitter * 0.8);
+      let val = this.currentBase + macroWander * 0.25 + variation;
+      return Math.min(0.48, Math.max(0.12, val));
     }
   }
 
@@ -159,24 +150,6 @@ class WaveformChannel {
     const val = this.nextSample();
     this.data.shift();
     this.data.push(val);
-
-    // Continuous wave surge: If transitioning towards active or inactive,
-    // smoothly lift/lower existing buffer points frame-by-frame
-    // Eliminates sudden step jumps while providing an organic physical surge over ~200ms
-    if (this.isActive && this.currentBase < 0.80) {
-      for (let i = 0; i < this.pointsCount; i++) {
-        if (this.data[i] < 0.735) {
-          this.data[i] += (0.76 - this.data[i]) * 0.08;
-        }
-      }
-    } else if (!this.isActive && this.currentBase > 0.28) {
-      for (let i = 0; i < this.pointsCount; i++) {
-        if (this.data[i] > 0.45) {
-          this.data[i] += (0.28 - this.data[i]) * 0.08;
-        }
-      }
-    }
-
     this.updateMetrics();
   }
 

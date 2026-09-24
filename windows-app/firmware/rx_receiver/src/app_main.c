@@ -40,6 +40,7 @@
 #include "esp_log.h"
 #include "esp_wifi.h"
 #include "esp_netif.h"
+#include "esp_event.h"
 #include "esp_now.h"
 #include "esp_timer.h"
 #include "driver/gpio.h"
@@ -47,9 +48,25 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 
+#include "lwip/err.h"
+#include "lwip/sockets.h"
+#include "lwip/sys.h"
+#include <lwip/netdb.h>
+
+#define HOTSPOT_SSID        "MMA"
+#define HOTSPOT_PASS        "mma151688"
+#define UDP_TARGET_PORT     5555
+
+static int s_udp_sock = -1;
+static struct sockaddr_in s_udp_dest_addr;
+static struct sockaddr_in s_udp_subnet_addr;
+static volatile bool s_has_subnet_addr = false;
+static volatile bool s_wifi_connected = false;
+static volatile uint32_t s_rx_packet_count = 0;
+
 /* ─── Configuration (set via platformio.ini build_flags) ─────────────────── */
 #ifndef CONFIG_WIFI_CHANNEL
-#define CONFIG_WIFI_CHANNEL         6
+#define CONFIG_WIFI_CHANNEL         2
 #endif
 
 #ifndef CONFIG_NODE_ID
@@ -64,22 +81,14 @@ static const uint8_t CONFIG_CSI_SEND_MAC[6] = {
 
 /* Physical hardware MAC of ESP32-S3 TX board (backup match) */
 static const uint8_t HARDWARE_TX_S3_MAC[6] = {0x10, 0x51, 0xdb, 0x85, 0xfe, 0xb8};
+/* Physical hardware MAC of ESP32 DevKit V1 TX board (COM7) */
+static const uint8_t HARDWARE_TX_DEVKIT_MAC[6] = {0x84, 0x1f, 0xe8, 0x1b, 0x5f, 0x78};
 static const uint8_t BROADCAST_MAC[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 /* ─── LED Configuration ───────────────────────────────────────────────────── */
-/*
- * GPIO 2 is used as LED output.
- * On ESP32-S3 DevKitC-1: GPIO 2 is a general-purpose IO.
- * If your board has a different LED pin, change LED_GPIO here.
- * LED blink pattern: toggles every 10 received CSI packets (~5Hz visible blink).
- */
 #define LED_GPIO                    GPIO_NUM_2
 
 /* ─── CSI Queue Configuration ─────────────────────────────────────────────── */
-/*
- * Queue size: enough to buffer ~1s of CSI at 100Hz (100 items) without dropping.
- * Worker task yield ensures IDLE gets CPU time, preventing WDT starvation.
- */
 #define CSI_QUEUE_SIZE              100
 #define CSI_MAX_SUBCARRIERS         128   /* HT20 gives 52 data + pilot; 128 covers all */
 
@@ -99,17 +108,42 @@ static volatile uint32_t s_total_cb_calls   = 0;
 static volatile uint32_t s_matched_cb_calls = 0;
 static uint8_t           s_last_mac[6]      = {0};
 
+/* Candidate LED pins covering ESP32-S3 and AM-036 (TTGO T-Call GPIO 13) & clones */
+static const gpio_num_t CANDIDATE_LEDS[] = {
+#if CONFIG_IDF_TARGET_ESP32S3
+    GPIO_NUM_2, GPIO_NUM_48, GPIO_NUM_38, GPIO_NUM_21, GPIO_NUM_1
+#else
+    GPIO_NUM_13, GPIO_NUM_2, GPIO_NUM_4, GPIO_NUM_5, GPIO_NUM_12,
+    GPIO_NUM_14, GPIO_NUM_15, GPIO_NUM_16, GPIO_NUM_21, GPIO_NUM_22,
+    GPIO_NUM_23, GPIO_NUM_25, GPIO_NUM_27, GPIO_NUM_32, GPIO_NUM_33
+#endif
+};
+#define NUM_LEDS (sizeof(CANDIDATE_LEDS) / sizeof(CANDIDATE_LEDS[0]))
+
 /* ─── LED Helper ──────────────────────────────────────────────────────────── */
 static void led_init(void)
 {
-    gpio_reset_pin(LED_GPIO);
-    gpio_set_direction(LED_GPIO, GPIO_MODE_OUTPUT);
-    gpio_set_level(LED_GPIO, 0);
+    gpio_config_t io_conf = {
+        .mode = GPIO_MODE_OUTPUT,
+        .intr_type = GPIO_INTR_DISABLE,
+        .pin_bit_mask = 0,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+    };
+    for (size_t i = 0; i < NUM_LEDS; i++) {
+        io_conf.pin_bit_mask |= (1ULL << CANDIDATE_LEDS[i]);
+    }
+    gpio_config(&io_conf);
+    for (size_t i = 0; i < NUM_LEDS; i++) {
+        gpio_set_level(CANDIDATE_LEDS[i], 0);
+    }
 }
 
 static inline void led_set(int level)
 {
-    gpio_set_level(LED_GPIO, level);
+    for (size_t i = 0; i < NUM_LEDS; i++) {
+        gpio_set_level(CANDIDATE_LEDS[i], level);
+    }
 }
 
 /* Startup sequence: 3 rapid blinks to show firmware is alive */
@@ -118,6 +152,31 @@ static void led_startup_blink(void)
     for (int i = 0; i < 3; i++) {
         led_set(1); vTaskDelay(pdMS_TO_TICKS(100));
         led_set(0); vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+
+/* Dedicated continuous LED blink task pinned to Core 1:
+ * - 2Hz heartbeat (250ms ON, 250ms OFF) when idle/waiting
+ * - 10Hz rapid blink (50ms ON, 50ms OFF) when actively receiving CSI packets
+ */
+static void led_blink_task(void *pvParameter)
+{
+    uint32_t last_count = 0;
+    while (1) {
+        bool receiving = (s_rx_packet_count != last_count);
+        last_count = s_rx_packet_count;
+
+        if (receiving) {
+            led_set(1);
+            vTaskDelay(pdMS_TO_TICKS(50));
+            led_set(0);
+            vTaskDelay(pdMS_TO_TICKS(50));
+        } else {
+            led_set(1);
+            vTaskDelay(pdMS_TO_TICKS(250));
+            led_set(0);
+            vTaskDelay(pdMS_TO_TICKS(250));
+        }
     }
 }
 
@@ -134,7 +193,8 @@ static void csi_callback(void *ctx, wifi_csi_info_t *info)
 
     /* Filter: ONLY accept CSI packets originating from our TX broadcaster MAC */
     if (memcmp(info->mac, CONFIG_CSI_SEND_MAC, 6) != 0 &&
-        memcmp(info->mac, HARDWARE_TX_S3_MAC, 6) != 0) {
+        memcmp(info->mac, HARDWARE_TX_S3_MAC, 6) != 0 &&
+        memcmp(info->mac, HARDWARE_TX_DEVKIT_MAC, 6) != 0) {
         return;
     }
     s_matched_cb_calls++;
@@ -185,18 +245,11 @@ static void csi_worker_task(void *pvParameter)
                      s_total_cb_calls, s_matched_cb_calls,
                      s_last_mac[0], s_last_mac[1], s_last_mac[2],
                      s_last_mac[3], s_last_mac[4], s_last_mac[5]);
-            /* Blink LED rapidly when waiting (no signal) */
-            led_set((xTaskGetTickCount() / pdMS_TO_TICKS(250)) % 2);
             continue;
         }
 
         packet_count++;
-
-        /* ── LED blink: toggle every 10 packets (~5Hz visible blink at 100pkt/s) ── */
-        led_toggle_count++;
-        if (led_toggle_count % 10 == 0) {
-            led_set((led_toggle_count / 10) % 2);
-        }
+        s_rx_packet_count = packet_count;
 
         /* ── Amplitude statistics for live hand-movement verification ── */
         /* Compute mean amplitude across non-zero subcarrier pairs */
@@ -244,6 +297,16 @@ static void csi_worker_task(void *pvParameter)
         /* Write to stdout → USB-serial (921600 baud) */
         printf("%s", line_buf);
 
+        /* Write to UDP broadcast over Wi-Fi Hotspot (Global + Subnet) */
+        if (s_wifi_connected && s_udp_sock >= 0) {
+            sendto(s_udp_sock, line_buf, strlen(line_buf), 0,
+                   (struct sockaddr *)&s_udp_dest_addr, sizeof(s_udp_dest_addr));
+            if (s_has_subnet_addr) {
+                sendto(s_udp_sock, line_buf, strlen(line_buf), 0,
+                       (struct sockaddr *)&s_udp_subnet_addr, sizeof(s_udp_subnet_addr));
+            }
+        }
+
         /* ── CRITICAL: delay to let IDLE task run and prevent Task WDT starvation ── */
         /* taskYIELD() only yields to same priority; vTaskDelay blocks and lets priority 0 run. */
         vTaskDelay(1);
@@ -251,8 +314,9 @@ static void csi_worker_task(void *pvParameter)
         /* ── Print amplitude stats every 100 packets for hand-movement feedback ── */
         if (packet_count % 100 == 0) {
             float amp_avg = (amp_count_window > 0) ? (amp_sum_window / amp_count_window) : 0.0f;
-            ESP_LOGI(TAG, "--- STATS [%lu pkts] RSSI=%ddBm AMP_avg=%.1f AMP_min=%.1f AMP_max=%.1f | Wave your hand to see changes! ---",
-                     packet_count, (int)record.rssi, amp_avg, amp_min_window, amp_max_window);
+            ESP_LOGI(TAG, "--- STATS [%lu pkts] RSSI=%ddBm AMP_avg=%.1f AMP_min=%.1f AMP_max=%.1f | Hotspot=%s ---",
+                     packet_count, (int)record.rssi, amp_avg, amp_min_window, amp_max_window,
+                     s_wifi_connected ? "ONLINE" : "CONNECTING");
             /* Reset window stats */
             amp_sum_window   = 0.0f;
             amp_count_window = 0;
@@ -262,30 +326,102 @@ static void csi_worker_task(void *pvParameter)
     }
 }
 
+/* ─── Wi-Fi Event Handler ─────────────────────────────────────────────────── */
+static void wifi_event_handler(void* arg, esp_event_base_t event_base,
+                               int32_t event_id, void* event_data)
+{
+    if (event_base == WIFI_EVENT) {
+        if (event_id == WIFI_EVENT_STA_START) {
+            ESP_LOGI(TAG, "Wi-Fi STA started. Connecting to '%s'...", HOTSPOT_SSID);
+            esp_wifi_connect();
+        } else if (event_id == WIFI_EVENT_STA_CONNECTED) {
+            ESP_LOGI(TAG, "Connected to '%s'! Waiting for IP...", HOTSPOT_SSID);
+        } else if (event_id == WIFI_EVENT_STA_DISCONNECTED) {
+            wifi_event_sta_disconnected_t *disconn = (wifi_event_sta_disconnected_t *)event_data;
+            ESP_LOGW(TAG, "Wi-Fi disconnected from '%s', reason=%d, retrying...", HOTSPOT_SSID, disconn ? disconn->reason : -1);
+            s_wifi_connected = false;
+            if (s_udp_sock >= 0) {
+                close(s_udp_sock);
+                s_udp_sock = -1;
+            }
+            vTaskDelay(pdMS_TO_TICKS(500));
+            esp_wifi_connect();
+        } else {
+            ESP_LOGI(TAG, "WIFI_EVENT id=%ld", (long)event_id);
+        }
+    } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+        ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
+        ESP_LOGI(TAG, "[HOTSPOT CONNECTED] IP: " IPSTR, IP2STR(&event->ip_info.ip));
+
+        if (s_udp_sock < 0) {
+            s_udp_sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+            if (s_udp_sock >= 0) {
+                int broadcast = 1;
+                setsockopt(s_udp_sock, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast));
+
+                /* 1. Global Broadcast 255.255.255.255 */
+                memset(&s_udp_dest_addr, 0, sizeof(s_udp_dest_addr));
+                s_udp_dest_addr.sin_family = AF_INET;
+                s_udp_dest_addr.sin_port = htons(UDP_TARGET_PORT);
+                s_udp_dest_addr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
+
+                /* 2. Subnet Broadcast: (ip & netmask) | ~netmask */
+                uint32_t ip = event->ip_info.ip.addr;
+                uint32_t mask = event->ip_info.netmask.addr;
+                uint32_t subnet_bcast = (ip & mask) | (~mask);
+
+                memset(&s_udp_subnet_addr, 0, sizeof(s_udp_subnet_addr));
+                s_udp_subnet_addr.sin_family = AF_INET;
+                s_udp_subnet_addr.sin_port = htons(UDP_TARGET_PORT);
+                s_udp_subnet_addr.sin_addr.s_addr = subnet_bcast;
+                s_has_subnet_addr = true;
+
+                s_wifi_connected = true;
+                ESP_LOGI(TAG, "[UDP BROADCAST READY] Streaming to 255.255.255.255:%d and Subnet " IPSTR ":%d",
+                         UDP_TARGET_PORT, IP2STR((esp_ip4_addr_t*)&subnet_bcast), UDP_TARGET_PORT);
+
+                /* Ensure modem power saving is completely disabled after associating with AP */
+                esp_wifi_set_ps(WIFI_PS_NONE);
+                esp_wifi_set_csi(true);
+                ESP_LOGI(TAG, "PS_NONE & CSI enabled on active channel");
+            }
+        }
+    }
+}
+
 /* ─── Wi-Fi Initialisation ───────────────────────────────────────────────── */
 static void wifi_init(void)
 {
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     ESP_ERROR_CHECK(esp_netif_init());
+    esp_netif_create_default_wifi_sta();
+
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(
+        WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(
+        IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL, NULL));
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     cfg.csi_enable = 1;
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+
+    wifi_config_t wifi_config;
+    memset(&wifi_config, 0, sizeof(wifi_config));
+    strlcpy((char *)wifi_config.sta.ssid, HOTSPOT_SSID, sizeof(wifi_config.sta.ssid));
+    strlcpy((char *)wifi_config.sta.password, HOTSPOT_PASS, sizeof(wifi_config.sta.password));
+    wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
+    wifi_config.sta.pmf_cfg.capable = true;
+    wifi_config.sta.pmf_cfg.required = false;
+
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
     ESP_ERROR_CHECK(esp_wifi_start());
 
-    /* Fix channel — must match TX exactly */
-    ESP_ERROR_CHECK(esp_wifi_set_channel(CONFIG_WIFI_CHANNEL, WIFI_SECOND_CHAN_NONE));
-
-    /* Override bandwidth to HT20 — must match TX */
-    ESP_ERROR_CHECK(esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW20));
-
-    /* Disable power saving for continuous reception */
+    /* Disable power saving for continuous reception & minimal latency */
     ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE));
 
-    ESP_LOGI(TAG, "Wi-Fi STA started. Node: %s | Channel: %d | BW: HT20",
-             CONFIG_NODE_ID, CONFIG_WIFI_CHANNEL);
+    ESP_LOGI(TAG, "Wi-Fi STA started. Auto-connecting to Hotspot: '%s'", HOTSPOT_SSID);
 }
 
 /* ─── ESP-NOW + CSI Initialisation ──────────────────────────────────────── */
@@ -308,21 +444,13 @@ static void espnow_csi_init(void)
     memcpy(peer_info.peer_addr, HARDWARE_TX_S3_MAC, 6);
     esp_now_add_peer(&peer_info);
 
+    /* Also register the hardware MAC of the DevKit TX board */
+    memcpy(peer_info.peer_addr, HARDWARE_TX_DEVKIT_MAC, 6);
+    esp_now_add_peer(&peer_info);
+
     /* Broadcast peer */
     memcpy(peer_info.peer_addr, BROADCAST_MAC, 6);
     esp_now_add_peer(&peer_info);
-
-    /* Enable promiscuous mode (required before CSI config) */
-    ESP_ERROR_CHECK(esp_wifi_set_promiscuous(true));
-
-    /* All frame types — needed to capture ESP-NOW ACTION frames */
-    wifi_promiscuous_filter_t filter = {
-        .filter_mask = WIFI_PROMIS_FILTER_MASK_ALL
-    };
-    ESP_ERROR_CHECK(esp_wifi_set_promiscuous_filter(&filter));
-
-    /* Re-lock channel after entering promiscuous mode */
-    ESP_ERROR_CHECK(esp_wifi_set_channel(CONFIG_WIFI_CHANNEL, WIFI_SECOND_CHAN_NONE));
 
     /*
      * Configure CSI:
@@ -395,6 +523,17 @@ void app_main(void)
         8192,
         NULL,
         3,      /* Priority */
+        NULL,
+        1       /* Core 1 */
+    );
+
+    /* Dedicated continuous LED blink task */
+    xTaskCreatePinnedToCore(
+        led_blink_task,
+        "led_blink",
+        2048,
+        NULL,
+        1,      /* Priority */
         NULL,
         1       /* Core 1 */
     );
